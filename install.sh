@@ -45,6 +45,84 @@ out "Installing guardrails into $TARGET"
 
 run() { [[ $DRY_RUN -eq 1 ]] || "$@"; }
 
+# Provenance, so a reinstall can tell "the user edited this" from "this is an
+# older copy of ours." Comparing the installed file against the CURRENT shipped
+# one cannot distinguish those: both just differ. So record what we wrote, and
+# on the next run only refresh a file that still matches that record.
+#
+# guardrails.config.json is deliberately NOT managed this way. Step 1 of the
+# closing instructions tells you to gut it, so it is yours from that moment and
+# only --force replaces it.
+MANIFEST="$DEST/.guardrails-manifest"
+MANIFEST_NEW="$(mktemp)"
+
+hash_file() {
+    python3 -c 'import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$1" 2>/dev/null
+}
+manifest_hash() {
+    [[ -f "$MANIFEST" ]] || return 0
+    awk -F'\t' -v k="$1" '$1 == k { print $2 }' "$MANIFEST"
+}
+manifest_record() { printf '%s\t%s\n' "$1" "$2" >> "$MANIFEST_NEW"; }
+
+# sync_file <source> <dest> <manifest key> <label>
+sync_file() {
+    local src="$1" dst="$2" key="$3" label="$4"
+    local shipped recorded current
+    shipped="$(hash_file "$src")"
+
+    if [[ ! -f "$dst" ]]; then
+        say "-> $label"
+        run cp "$src" "$dst"
+        manifest_record "$key" "$shipped"
+        return
+    fi
+    if [[ $FORCE -eq 1 ]]; then
+        say "-> $label  (--force, replaced)"
+        run cp "$src" "$dst"
+        manifest_record "$key" "$shipped"
+        return
+    fi
+
+    current="$(hash_file "$dst")"
+    if [[ "$current" == "$shipped" ]]; then
+        say "-- $label already current"
+        manifest_record "$key" "$shipped"
+        return
+    fi
+
+    recorded="$(manifest_hash "$key")"
+    if [[ -n "$recorded" && "$current" == "$recorded" ]]; then
+        say "-> $label  (updated -- unmodified since install)"
+        run cp "$src" "$dst"
+        manifest_record "$key" "$shipped"
+    else
+        # Edited locally, or installed before the manifest existed. Unknown
+        # provenance is treated as edited: never overwrite someone's work to
+        # deliver a newer default.
+        say "-- $label modified locally, keeping it (--force to replace)"
+        [[ -n "$recorded" ]] && manifest_record "$key" "$recorded"
+    fi
+}
+
+finalize_manifest() {
+    if [[ $DRY_RUN -eq 1 ]]; then
+        rm -f "$MANIFEST_NEW"
+        return 0
+    fi
+    # Carry forward entries for files this run did not touch.
+    if [[ -f "$MANIFEST" ]]; then
+        while IFS="$(printf '\t')" read -r k h; do
+            [[ -n "$k" ]] || continue
+            if ! awk -F'\t' -v k="$k" '$1 == k { f = 1 } END { exit !f }' "$MANIFEST_NEW"; then
+                printf '%s\t%s\n' "$k" "$h" >> "$MANIFEST_NEW"
+            fi
+        done < "$MANIFEST"
+    fi
+    LC_ALL=C sort -o "$MANIFEST_NEW" "$MANIFEST_NEW"
+    mv "$MANIFEST_NEW" "$MANIFEST"
+}
+
 # --- 1. scripts + harness --------------------------------------------------
 say "-> .claude/hooks-scripts/  (6 guards + engine)"
 run mkdir -p "$DEST/hooks-scripts"
@@ -70,19 +148,24 @@ else
     run cp "$SRC/.claude/guardrails.config.json" "$DEST/"
 fi
 
-# --- 3. slash commands -----------------------------------------------------
-say "-> .claude/commands/       (4 commands, skipping any that exist)"
+# --- 3. the CLAUDE.md template ---------------------------------------------
+# Shipped, not just linked from the README. Step 2 of the closing instructions
+# tells you to start from your CLAUDE.md's "don't run this" list; a user who has
+# never written one needs the template in the repo, not a URL they will not open.
+# Not named CLAUDE.md: that would be auto-loaded as real project memory.
+say "   what to write in a CLAUDE.md, and what to leave out"
+sync_file "$SRC/templates/CLAUDE.md.template" "$DEST/CLAUDE.md.template" \
+    "CLAUDE.md.template" ".claude/CLAUDE.md.template"
+
+# --- 4. slash commands -----------------------------------------------------
+say "-> .claude/commands/       (4 commands; yours are kept)"
 run mkdir -p "$DEST/commands"
 for cmd in "$SRC/.claude/commands/"*.md; do
     name="$(basename "$cmd")"
-    if [[ -f "$DEST/commands/$name" && $FORCE -eq 0 ]]; then
-        say "   -- $name exists, skipped"
-    else
-        run cp "$cmd" "$DEST/commands/$name"
-    fi
+    sync_file "$cmd" "$DEST/commands/$name" "commands/$name" "   commands/$name"
 done
 
-# --- 4. merge settings.json ------------------------------------------------
+# --- 5. merge settings.json ------------------------------------------------
 # Deep-merged in Python rather than with `jq '. * .'`: jq's object-merge
 # REPLACES arrays, so a target that already has a PreToolUse entry would lose it.
 say "-> .claude/settings.json   (merging, existing hooks preserved)"
@@ -158,7 +241,9 @@ else
     die "settings.json merge failed"
 fi
 
-# --- 5. verify -------------------------------------------------------------
+finalize_manifest
+
+# --- 6. verify -------------------------------------------------------------
 if [[ $DRY_RUN -eq 0 ]]; then
     out ""
     out "Verifying..."
@@ -182,12 +267,20 @@ Done. Next, in order:
      A guard that fires on correct code gets the whole file disabled.
 
   2. Add your own. Start from your CLAUDE.md's "don't run this" list -- those
-     lines are documentation until something enforces them.
+     lines are documentation until something enforces them. No such list yet?
+     .claude/CLAUDE.md.template is the shape of one, and says which sections
+     become which rules.
 
   3. Wire the harness into pre-push or CI:
        bash .claude/hooks/test-hooks.sh
 
   4. Read docs/PATTERNS.md before writing a rule. Most of the sharp edges
      (matcher gaps, quote stripping, exemptions that fail open) are there.
+
+Re-running this is safe: the template and commands are refreshed only while
+they still match what was installed, and your edits are kept. The one
+exception is --force, which replaces guardrails.config.json, the template and
+the commands outright -- including the rules you deleted in step 1. Commit
+before using it.
 EOF
 } || true
