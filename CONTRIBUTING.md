@@ -70,6 +70,29 @@ nothing and silently allows everything.
 - Guards must work from a git worktree, where cwd and the script's location
   differ.
 
+## What gates a merge
+
+`main` is protected by a ruleset. Five checks must pass:
+
+| Check | Covers |
+|---|---|
+| `hooks (ubuntu-latest)` | the harness on Linux |
+| `hooks (macos-latest)` | the harness on macOS, including stock bash 3.2 |
+| `lint` | shellcheck at `-S warning`, plus Python and JSON parse |
+| `repo self-checks` | `scripts/verify-repo.sh` |
+| `python 3.9` | the version floor |
+
+`python 3.10` through `3.13` run but do not gate. 3.9 is the one that can
+actually break.
+
+**Renaming a job breaks this silently.** The ruleset matches on the check name,
+so a renamed job leaves the old name required and never reported, which blocks
+every PR. Rename the job and the ruleset together, and update the table above.
+That coupling is what the `config_sync` rule for `.github/workflows/` is about.
+
+Force-pushing and deleting `main` are blocked. The repository admin can bypass,
+so a solo maintainer is never locked out of their own branch.
+
 ## Cutting a release
 
 1. Move the `[Unreleased]` entries into a new `## [X.Y.Z] - YYYY-MM-DD` section
