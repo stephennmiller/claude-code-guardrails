@@ -79,9 +79,13 @@ jobs:
           # The pre-existing hook must survive the merge.
           grep -q "echo existing" "$TARGET/.claude/settings.json" \
             || { echo "::error::install clobbered an existing hook"; exit 1; }
-          # And a second run must be a no-op.
-          ./install.sh "$TARGET" | grep -q "0 hook(s) added" \
-            || { echo "::error::install is not idempotent"; exit 1; }
+          # And a second run must be a no-op. Captured rather than piped into
+          # `grep -q`: grep exits on the first match and closes the pipe, which
+          # can EPIPE the still-writing installer and fail the pipeline under
+          # pipefail. That race is flaky by construction.
+          SECOND="$(./install.sh "$TARGET")"
+          grep -q "0 hook(s) added" <<<"$SECOND" \
+            || { echo "::error::install is not idempotent"; echo "$SECOND"; exit 1; }
 
   lint:
     name: lint (advisory)

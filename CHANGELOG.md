@@ -16,6 +16,13 @@ to replace it. A schema or contract change requires a major bump.
   end-to-end `install.sh` run against a scratch repo.
 - `CONTRIBUTING.md` and this changelog.
 
+### Fixed
+- `install.sh` no longer fails when its output is piped to a consumer that
+  exits early (`head`, `grep -q`). Those close the pipe, and the next write
+  raised EPIPE which `set -e` turned into a failed install — non-deterministically,
+  since it depended on whether the installer had finished writing. Caught by CI
+  on the first run.
+
 ## [1.0.0] - 2026-09-12
 
 Initial public release.

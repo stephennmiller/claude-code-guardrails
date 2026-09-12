@@ -21,8 +21,15 @@ for arg in "${@:2}"; do
     esac
 done
 
+# Tolerate a closed stdout. This script's output is routinely piped to `head`
+# or `grep -q`, which exit on the first match and close the pipe; the next write
+# then gets EPIPE and, under `set -e`, aborts an install that had in fact
+# succeeded. Whether that happens is a race, so it shows up as a flaky failure.
+trap '' PIPE
+
 die() { echo "error: $*" >&2; exit 1; }
-say() { echo "  $*"; }
+say() { echo "  $*" 2>/dev/null || true; }
+out() { echo "$*" 2>/dev/null || true; }
 
 [[ -n "$TARGET" ]] || die "usage: ./install.sh /path/to/repo [--dry-run] [--force]"
 [[ -d "$TARGET" ]] || die "not a directory: $TARGET"
@@ -33,8 +40,8 @@ TARGET="$(cd "$TARGET" && pwd)"
 DEST="$TARGET/.claude"
 [[ "$DEST" != "$SRC/.claude" ]] || die "refusing to install into myself"
 
-echo "Installing guardrails into $TARGET"
-[[ $DRY_RUN -eq 1 ]] && echo "(dry run -- nothing will be written)"
+out "Installing guardrails into $TARGET"
+[[ $DRY_RUN -eq 1 ]] && out "(dry run -- nothing will be written)"
 
 run() { [[ $DRY_RUN -eq 1 ]] || "$@"; }
 
@@ -125,15 +132,22 @@ if not dry:
     target_path.write_text(json.dumps(target, indent=2) + "\n", encoding="utf-8")
 PY
 )"
-python3 -c "$MERGE_SCRIPT" "$DEST/settings.json" "$SRC/.claude/settings.json" "$DRY_RUN" \
-    || die "settings.json merge failed"
+# Captured rather than written straight to stdout: if the caller piped us into
+# something that exits early, a direct write raises BrokenPipeError inside
+# Python and the merge reports a failure that never happened.
+if MERGE_OUT="$(python3 -c "$MERGE_SCRIPT" "$DEST/settings.json" "$SRC/.claude/settings.json" "$DRY_RUN")"; then
+    [[ -n "$MERGE_OUT" ]] && out "$MERGE_OUT"
+else
+    [[ -n "$MERGE_OUT" ]] && out "$MERGE_OUT"
+    die "settings.json merge failed"
+fi
 
 # --- 5. verify -------------------------------------------------------------
 if [[ $DRY_RUN -eq 0 ]]; then
-    echo
-    echo "Verifying..."
+    out ""
+    out "Verifying..."
     if bash "$DEST/hooks/test-hooks.sh" >/tmp/guardrails-verify.$$ 2>&1; then
-        tail -1 /tmp/guardrails-verify.$$ | sed 's/^/  /'
+        say "$(tail -1 /tmp/guardrails-verify.$$)"
     else
         echo "  harness FAILED -- see below" >&2
         cat /tmp/guardrails-verify.$$ >&2
@@ -143,7 +157,7 @@ if [[ $DRY_RUN -eq 0 ]]; then
     rm -f /tmp/guardrails-verify.$$
 fi
 
-cat <<'EOF'
+{ cat 2>/dev/null <<'EOF'
 
 Done. Next, in order:
 
@@ -160,3 +174,4 @@ Done. Next, in order:
   4. Read docs/PATTERNS.md before writing a rule. Most of the sharp edges
      (matcher gaps, quote stripping, exemptions that fail open) are there.
 EOF
+} || true
