@@ -241,7 +241,7 @@ only there.
 
 ## 9. Constrain the agent, not the human
 
-`git-safety.sh` blocks the hook-bypass flag on commit and push. It is a Claude
+`git-safety.py` blocks the hook-bypass flag on commit and push. It is a Claude
 Code hook, **not** a git hook — so it constrains the agent only. A human running
 the same command in their own terminal is unaffected, and a contributor who has
 never heard of this repo's agent setup notices nothing.
