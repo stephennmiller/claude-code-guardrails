@@ -113,6 +113,40 @@ jobs:
             || { echo "::error::install clobbered a locally edited template"; exit 1; }
           git checkout templates/CLAUDE.md.template
 
+      - name: Upgrade an install that predates a guard rename
+        # A merge preserves what is already wired, which is right for a user's
+        # own hooks and wrong for one of ours that was renamed: the stale entry
+        # keeps pointing at the old file, still on disk, so the repo runs BOTH
+        # the old guard and its replacement. Every other test installs into an
+        # empty directory, so nothing exercised this.
+        shell: bash
+        run: |
+          set -euo pipefail
+          OLD="$(mktemp -d)/old"
+          mkdir -p "$OLD/.claude/hooks-scripts"
+          printf 'exit 0\n' > "$OLD/.claude/hooks-scripts/git-safety.sh"
+          printf 'exit 0\n' > "$OLD/.claude/hooks-scripts/my-own-guard.sh"
+          chmod +x "$OLD/.claude/hooks-scripts/"*.sh
+          cat > "$OLD/.claude/settings.json" <<'JSON'
+          {"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[
+            {"type":"command","command":"\"$CLAUDE_PROJECT_DIR/.claude/hooks-scripts/git-safety.sh\""},
+            {"type":"command","command":"\"$CLAUDE_PROJECT_DIR/.claude/hooks-scripts/my-own-guard.sh\""}
+          ]}]}}
+          JSON
+          ./install.sh "$OLD" >/dev/null
+          grep -q 'git-safety.py' "$OLD/.claude/settings.json" \
+            || { echo "::error::the replacement guard was not wired"; exit 1; }
+          if grep -q 'git-safety.sh' "$OLD/.claude/settings.json"; then
+            echo "::error::stale guard entry survived the upgrade"; exit 1
+          fi
+          test ! -f "$OLD/.claude/hooks-scripts/git-safety.sh" \
+            || { echo "::error::retired guard file left on disk"; exit 1; }
+          # A hook the USER added must never be pruned.
+          grep -q 'my-own-guard.sh' "$OLD/.claude/settings.json" \
+            || { echo "::error::install pruned a user's own hook"; exit 1; }
+          test -f "$OLD/.claude/hooks-scripts/my-own-guard.sh" \
+            || { echo "::error::install deleted a user's own script"; exit 1; }
+
   lint:
     name: lint
     runs-on: ubuntu-latest
