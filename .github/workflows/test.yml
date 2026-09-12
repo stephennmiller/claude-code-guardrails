@@ -195,6 +195,33 @@ jobs:
           done
           echo "all json files parse"
 
+      - name: markdownlint
+        # Pinned to 0.45.0, not latest. 0.46.0+ ships MD060 (table-column-style),
+        # which flags every table in this repo's docs for using the standard
+        # compact `|---|---|` separator row -- a style question, not a defect,
+        # and fixing it would mean rewriting every table in README.md,
+        # CONTRIBUTING.md and docs/PATTERNS.md for no readability gain. Bump
+        # MDL_VERSION only once .markdownlint.json is updated to account for
+        # whatever new rules the target version adds.
+        #
+        # --dot matters: without it, markdownlint silently skips
+        # .claude/commands/*.md (a dot-directory) and the step would go green
+        # having never linted the slash-command docs. Verified to actually
+        # both fail and matter: an injected heading-space violation in
+        # .claude/commands/review-pr.md was caught with --dot and silently
+        # missed without it.
+        #
+        # --ignore excludes .claude/worktrees/, a local dev convention (see
+        # CLAUDE.md) that would otherwise get double-linted as a nested copy
+        # of the whole repo if a worktree happens to exist when this runs.
+        env:
+          MDL_VERSION: 0.45.0
+        run: |
+          set -euo pipefail
+          npm install -g "markdownlint-cli@${MDL_VERSION}"
+          markdownlint --dot --ignore '.claude/worktrees/**' '**/*.md'
+          markdownlint templates/CLAUDE.md.template
+
   verify:
     name: repo self-checks
     runs-on: ubuntu-latest

@@ -78,7 +78,7 @@ nothing and silently allows everything.
 |---|---|
 | `hooks (ubuntu-latest)` | the harness on Linux |
 | `hooks (macos-latest)` | the harness on macOS, including stock bash 3.2 |
-| `lint` | shellcheck at `-S warning`, plus Python and JSON parse |
+| `lint` | shellcheck at `-S warning`, plus Python/JSON parse and `markdownlint` |
 | `repo self-checks` | `scripts/verify-repo.sh` |
 | `python 3.9` | the version floor |
 
@@ -106,13 +106,14 @@ so a solo maintainer is never locked out of their own branch.
 
 ## Pinned third-party versions
 
-Three things are pinned to an exact version, and each needs a deliberate bump:
+Four things are pinned to an exact version, and each needs a deliberate bump:
 
 | What | Where | Pinned to |
 |---|---|---|
 | `actions/checkout` | both workflows | commit SHA, tag in a trailing comment |
 | `actions/setup-python` | `test.yml` | commit SHA, tag in a trailing comment |
 | `shellcheck` | `test.yml` | `SC_VERSION` + `SC_SHA256`, verified on download |
+| `markdownlint-cli` | `test.yml` | `MDL_VERSION` env var; top-level package only, no lockfile so transitive deps float |
 
 A floating `@v4` resolves to whatever that tag points at today, which is a
 supply-chain hole and a way for an unrelated PR to go red. Resolve the new tag
