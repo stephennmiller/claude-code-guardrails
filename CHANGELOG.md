@@ -11,6 +11,13 @@ an additive one — a new optional config key, say — is a minor.
 
 ## [Unreleased]
 
+### Fixed
+
+- `templates/CLAUDE.md.template`'s bare `<placeholder>` fill-ins that happened
+  to parse as valid HTML open tags now use the same backtick code-span
+  convention as every other placeholder in the file, closing the last
+  `markdownlint` MD033 warnings in the repo's docs.
+
 ## [1.3.0] - 2026-09-12
 
 ### Added
