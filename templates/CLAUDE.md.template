@@ -9,16 +9,19 @@ HOW TO USE THIS TEMPLATE
 Four sections below carry almost all the value. They are the ones people skip:
 
   1. High-blast-radius actions  -> becomes blast_radius rules in guardrails.config.json
-  2. Known rough edges          -> the highest-value section in the whole file
-  3. Where to look (by task)    -> turns a repo-wide grep into a one-file read
-  4. Do / Don't                 -> only the non-obvious half
+  2. Coupled surfaces           -> becomes config_sync rules in the same file
+  3. Known rough edges          -> the highest-value section in the whole file
+  4. Where to look (by task)    -> turns a repo-wide grep into a one-file read
+  5. Do / Don't                 -> only the non-obvious half
 
 The rest is orientation. Write it once, keep it short, and let it go stale
 slowly rather than writing a beautiful document nobody updates.
 
-THE TEST FOR EVERY LINE: would an experienced engineer, dropped into this repo,
-get this wrong on their first day? If not, delete it. "Use meaningful variable
-names" is noise. "`npm run test` is watch-by-default and will hang you" is not.
+THE TEST FOR EVERY LINE: would a capable agent, or an experienced engineer on
+their first day in this repo, get this wrong? If neither would, delete it. "Use
+meaningful variable names" is noise. "`npm run test` is watch-by-default and
+will hang you" is not. Agent habits count: "don't create new docs unless asked"
+earns its line even though no human needs telling.
 -->
 
 ## Project in one paragraph
@@ -94,6 +97,20 @@ Mark which are slow and which are release gates.
 | `<edit an applied migration>` | Diverges prod from the repo |
 | `<push to the protected branch>` | Bypasses review |
 | Editing generated dirs | Regenerate instead |
+
+## Coupled surfaces (change one, change the others)
+
+<!-- Each row should become a config_sync rule. These are the pairs nothing in
+     the repo links, so nothing catches a half-change: a component and the
+     manifest that deploys it, a CI job and the branch protection that requires
+     it by name, a shipped surface and the changelog. The failure is always the
+     same shape -- it works locally and is missing in production. -->
+
+| Change this | And these change with it |
+|-------------|--------------------------|
+| `<a new component or function>` | its entry in `<manifest>`, or the deploy skips it |
+| `<a CI job name>` | the branch protection requiring it, which matches on the name |
+| `<a user-visible surface>` | `CHANGELOG.md`, under `## [Unreleased]` |
 
 ## Known rough edges
 
