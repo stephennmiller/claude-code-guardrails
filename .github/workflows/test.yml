@@ -95,20 +95,28 @@ jobs:
             || { echo "::error::install is not idempotent"; echo "$SECOND"; exit 1; }
 
   lint:
-    name: lint (advisory)
+    name: lint
     runs-on: ubuntu-latest
-    # Advisory on purpose, and for the same reason config-sync-guard is: a
-    # check that cannot be verified before it runs should report, not block.
-    # Promote this to required once it has been green for a while.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
       - name: shellcheck
+        # Blocking at -S warning, which catches error and warning severity and
+        # is currently clean. Verified to actually fail: an injected SC2164
+        # (`cd` with no error handling) exits 1. Note that info-level findings
+        # such as SC2086 (unquoted variable) sit BELOW this threshold and will
+        # not fail the build -- drop to -S info if you want those too, after
+        # clearing the three deliberate findings below warning: a single-quoted
+        # grep pattern (SC2016) and two `sed 's/^/  /'` indents (SC2001).
+        #
+        # shellcheck comes from apt, so its version floats with the runner
+        # image. If a bump ever turns an unrelated PR red, pin the version here
+        # rather than dropping back to advisory.
         run: |
           sudo apt-get update && sudo apt-get install -y shellcheck
+          shellcheck --version
           find . -name '*.sh' -not -path './.git/*' -print0 \
-            | xargs -0 shellcheck -S warning || true
+            | xargs -0 shellcheck -S warning
 
       - name: python syntax
         run: |
