@@ -135,6 +135,13 @@
         "path": "(^|/)\\.github/workflows/.*\\.ya?ml$",
         "content": null,
         "message": "Workflow jobs and branch protection are coupled, and neither file mentions the other.\n  Adding a job does not make it required. Renaming one silently drops the old required check, which can leave PRs mergeable with nothing gating them.\n  Check the repo's branch ruleset after this lands."
+      },
+      {
+        "name": "user-visible change without a changelog line",
+        "$comment": "Scoped to the surfaces a user actually receives -- guards, the shipped config and wiring, and the installer. Deliberately NOT docs, tests or CI: a reminder that fires on every edit is one the model learns to skip, and it would take the useful rules with it.",
+        "path": "(^|/)(install\\.sh|\\.claude/settings\\.json|\\.claude/guardrails\\.config\\.json)$|(^|/)\\.claude/hooks-scripts/[^/]+\\.(py|sh)$",
+        "content": null,
+        "message": "This is a surface an installed user receives. If the change alters behaviour, add a line under `## [Unreleased]` in CHANGELOG.md now.\n  Written at release time instead, it gets reconstructed from git log, and whatever did not make it into a commit subject is lost.\n  Refactors, comments and test-only edits need nothing."
       }
     ]
   },

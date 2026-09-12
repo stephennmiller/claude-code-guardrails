@@ -116,6 +116,12 @@ commit. Update the trailing comment with the SHA, never separately.
 
 ## Cutting a release
 
+Add changelog lines **as you make the change**, under `## [Unreleased]`. A
+`config_sync` rule reminds you when you touch a guard, the shipped config, the
+wiring or the installer. Reconstructing the list at release time means reading
+it back out of `git log`, and anything that did not make it into a commit
+subject is simply gone.
+
 1. Move the `[Unreleased]` entries into a new `## [X.Y.Z] - YYYY-MM-DD` section
    in `CHANGELOG.md`, and add the compare link at the bottom.
 2. Commit and push to `main`.

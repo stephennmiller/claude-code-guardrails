@@ -10,7 +10,10 @@ to replace it. A schema or contract change requires a major bump.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+- A `config_sync` rule reminding you to add a changelog line when a
+  user-visible surface changes. Scoped to guards, shipped config, wiring and
+  the installer — not docs, tests or CI, where it would be noise.
 
 ## [1.2.1] - 2026-09-12
 
