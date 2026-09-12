@@ -4,13 +4,17 @@ on:
   push:
     tags: ['v*']
 
-permissions:
-  contents: write
+# Declared at the JOB, not the top level. A top-level `contents: write` is
+# inherited by every job in the file, so a second job added later would
+# silently get write access to the repository it does not need.
+permissions: {}
 
 jobs:
   release:
     name: publish ${{ github.ref_name }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
