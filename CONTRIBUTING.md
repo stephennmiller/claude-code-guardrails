@@ -85,6 +85,17 @@ nothing and silently allows everything.
 `python 3.10` through `3.13` run but do not gate. 3.9 is the one that can
 actually break.
 
+CodeQL also reports on every PR (`Analyze (actions)`, `Analyze (python)`,
+`CodeQL`). It gates nothing, and it comes from GitHub's default setup rather
+than a file — so nothing in `.github/workflows/` mentions it and the
+`config_sync` rule below cannot reach it. If you ever make it required, it has
+to be added to the table above by hand.
+
+The ruleset does **not** require a branch to be up to date before merging. Two
+PRs that each pass on their own can still break `main` together. That is a
+deliberate trade for a repo this size; it is the reason `main` going red is
+worth checking after a merge even when both PRs were green.
+
 **Renaming a job breaks this silently.** The ruleset matches on the check name,
 so a renamed job leaves the old name required and never reported, which blocks
 every PR. Rename the job and the ruleset together, and update the table above.
