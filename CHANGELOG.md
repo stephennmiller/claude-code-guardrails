@@ -6,7 +6,8 @@ project adheres to [Semantic Versioning][semver].
 **What the version number covers:** the hook contract (`exit 0` allow / `2`
 block / `1` non-blocking error) and the `guardrails.config.json` schema. Rule
 *content* is illustrative and changes freely at any version — you are expected
-to replace it. A schema or contract change requires a major bump.
+to replace it. A *breaking* schema or contract change requires a major bump;
+an additive one — a new optional config key, say — is a minor.
 
 ## [Unreleased]
 
