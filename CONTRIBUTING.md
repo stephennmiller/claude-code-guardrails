@@ -93,6 +93,27 @@ That coupling is what the `config_sync` rule for `.github/workflows/` is about.
 Force-pushing and deleting `main` are blocked. The repository admin can bypass,
 so a solo maintainer is never locked out of their own branch.
 
+## Pinned third-party versions
+
+Three things are pinned to an exact version, and each needs a deliberate bump:
+
+| What | Where | Pinned to |
+|---|---|---|
+| `actions/checkout` | both workflows | commit SHA, tag in a trailing comment |
+| `actions/setup-python` | `test.yml` | commit SHA, tag in a trailing comment |
+| `shellcheck` | `test.yml` | `SC_VERSION` + `SC_SHA256`, verified on download |
+
+A floating `@v4` resolves to whatever that tag points at today, which is a
+supply-chain hole and a way for an unrelated PR to go red. Resolve the new tag
+to its commit SHA before changing anything:
+
+```bash
+gh api repos/actions/checkout/git/ref/tags/v4.4.0 --jq '.object.sha'
+```
+
+Dereference the result if it comes back as an annotated tag rather than a
+commit. Update the trailing comment with the SHA, never separately.
+
 ## Cutting a release
 
 1. Move the `[Unreleased]` entries into a new `## [X.Y.Z] - YYYY-MM-DD` section
