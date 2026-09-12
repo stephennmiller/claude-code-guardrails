@@ -1,0 +1,89 @@
+# CLAUDE.md
+
+Claude Code hooks that make a CLAUDE.md's "don't run this" list executable.
+Six guards plus a test harness for the guards themselves. No runtime
+dependencies: `python3`, `jq`, `bash`.
+
+## Layout
+
+| Path | What |
+|------|------|
+| `.claude/hooks-scripts/` | The six guards. `_guardrails.py` is the shared engine. |
+| `.claude/guardrails.config.json` | Every project-specific rule. Data, not code. |
+| `.claude/hooks/test-hooks.sh` | 67 assertions, ~2s. |
+| `.claude/hooks/fixtures/` | Config the tests run against, so they exercise the engine. |
+| `.claude/settings.json` | Hook wiring, copied into the user's repo by `install.sh`. |
+| `docs/PATTERNS.md` | Why each rule is shaped the way it is. Read before writing one. |
+| `templates/CLAUDE.md.template` | Shipped to users. Not this file. |
+
+## Commands
+
+```bash
+bash .claude/hooks/test-hooks.sh      # the whole suite, ~2s
+bash .claude/hooks/test-hooks.sh -v   # print hook output for failures
+./install.sh "$(mktemp -d)" --dry-run  # what an install would do
+```
+
+There is no build, no package manager, and no lockfile. If you reach for one,
+stop and ask.
+
+## The contract
+
+Every hook obeys it. Breaking it is a breaking change.
+
+```
+exit 0 = allow    exit 2 = block    exit 1 = internal error, NON-BLOCKING
+```
+
+A crashing hook must never wedge a tool call. `run()` in `_guardrails.py` wraps
+every entry point to guarantee it.
+
+## Rules, not suggestions
+
+- **Add rules to `guardrails.config.json`, not to a script.** The scripts are
+  the engine. If a rule seems to need code, the schema is probably missing
+  something. Say so rather than special-casing it.
+- **Every guard change needs an assertion in `test-hooks.sh`.** Hooks fail
+  silently. A guard broken for a month looks exactly like a guard with nothing
+  to report.
+- **Test the false positives too.** Half a guard's value is staying quiet on
+  correct code. 37 of the 62 `expect` calls assert a guard says nothing.
+- **No assertions inside subshells.** `( cd X; expect ... )` discards the
+  counter increments, so a failing assertion prints in red and leaves the suite
+  green. Set `RUN_DIR` instead.
+- **Guards must work from a git worktree**, where cwd and the script's location
+  differ. Resolve paths by repo markers, never by one absolute path.
+- **Comments say why, not what.** A rule's comment should name what broke.
+- No emoji. Python is stdlib only. Shell is bash with `set -uo pipefail`.
+
+## Read before writing a rule
+
+`docs/PATTERNS.md` §1-3. These are not obvious and they have all bitten:
+
+1. A `Write|Edit` guard does nothing about `sed -i` via Bash. File-subject
+   guards register under both matchers.
+2. Grep the raw command and the guard fires on its own documentation. Strip
+   heredoc bodies first, then quoted spans. That order is load-bearing.
+3. An exemption that reads normalized text fails **open**. Exemptions only ever
+   read text that cannot have been stripped.
+
+## Known rough edges
+
+- **`test-hooks.sh` builds two literals at runtime** (`NOVERIFY`,
+  `RELEASE_SUBJECT`) so the file can be edited by agents whose own guards scan
+  for those strings. Don't "simplify" them back into whole strings.
+- **`install.sh` writes stdout through `say()`/`out()`** and sets `trap '' PIPE`.
+  Piping it to `head` or `grep -q` closes the pipe, and a direct write would
+  EPIPE and abort a successful install. Route new output through those helpers.
+- **Two synthetic credentials live in `test-hooks.sh`** as fixtures. Secret
+  scanners flag them. They are not real; dismiss rather than deleting the tests.
+- **CI runs on macOS as well as Linux.** BSD and GNU userland differ on `sed -i`,
+  `grep` and `awk`, and the guards lean on bash regex.
+
+## Don't
+
+- Don't add a dependency. There are none, and that is the point.
+- Don't add style or vulnerability linting. A hook sees one diff hunk with no
+  type information. That work belongs in a linter.
+- Don't loosen a guard to make a test pass. Fix the guard or fix the test.
+- Don't edit `.claude/hooks/fixtures/` to make a failing assertion pass.
