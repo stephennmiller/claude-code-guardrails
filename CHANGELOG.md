@@ -10,14 +10,22 @@ to replace it. A schema or contract change requires a major bump.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [1.1.0] - 2026-09-12
+
 ### Added
 - `scripts/verify-repo.sh` — checks the things the hook harness cannot see:
   docs naming files that exist, every rule regex compiling, every guard wired
   to a matcher, and `blast-radius-guard` registered under both matchers.
 - CI: repo self-checks, a Python 3.9-3.13 matrix, and the harness under stock
   macOS bash 3.2.
+- CI: shellcheck pinned to a checksummed v0.11.0 release rather than apt, so a
+  required check cannot redden on a runner-image bump.
 
 ### Changed
+- The lint job is blocking. It previously carried both `continue-on-error` and
+  a trailing `|| true`, so it was incapable of failing.
 - Documented the actual version floors: Python 3.9 (PEP 585 generics) and
   bash 3.2.
 
@@ -61,5 +69,6 @@ Initial public release.
 
 [kac]: https://keepachangelog.com/en/1.1.0/
 [semver]: https://semver.org/spec/v2.0.0.html
-[Unreleased]: https://github.com/stephennmiller/claude-code-guardrails/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/stephennmiller/claude-code-guardrails/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/stephennmiller/claude-code-guardrails/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/stephennmiller/claude-code-guardrails/releases/tag/v1.0.0
