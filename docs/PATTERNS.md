@@ -254,7 +254,7 @@ npm run test -- --run # correct
 
 This is the single likeliest way to hit the watch guard, so the flag before `--`
 must **not** count as a one-shot marker. The guard computes what npm actually
-forwards (everything after `--` plus a space, or nothing at all) and looks for run markers
+forwards (everything after the `--` separator, or nothing at all) and looks for run markers
 only there.
 
 ---
