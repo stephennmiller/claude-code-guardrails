@@ -22,6 +22,7 @@ dependencies: `python3` 3.9+, `jq`, `bash` 3.2+.
 bash .claude/hooks/test-hooks.sh      # the whole suite, ~2s
 bash .claude/hooks/test-hooks.sh -v   # print hook output for failures
 bash scripts/verify-repo.sh           # docs, config regexes, hook wiring
+bash scripts/release-notes.sh 1.1.0    # the CHANGELOG section a tag would publish
 ./install.sh "$(mktemp -d)" --dry-run  # what an install would do
 ```
 

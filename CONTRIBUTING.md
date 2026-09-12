@@ -70,6 +70,23 @@ nothing and silently allows everything.
 - Guards must work from a git worktree, where cwd and the script's location
   differ.
 
+## Cutting a release
+
+1. Move the `[Unreleased]` entries into a new `## [X.Y.Z] - YYYY-MM-DD` section
+   in `CHANGELOG.md`, and add the compare link at the bottom.
+2. Commit and push to `main`.
+3. Tag and push: `git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin vX.Y.Z`.
+
+The tag triggers `.github/workflows/release.yml`, which re-runs the suite
+against the tagged tree, lifts the notes out of `CHANGELOG.md`, and publishes.
+It refuses to run if that version has no changelog section, and refuses to
+touch a release that already exists.
+
+Check the notes first with `bash scripts/release-notes.sh X.Y.Z`.
+
+What the version covers: the hook contract and the `guardrails.config.json`
+schema. Rule content is illustrative and changes at any version.
+
 ## Scope
 
 In scope: the hook engine, the contract, the harness, the schema.

@@ -1,0 +1,61 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: publish ${{ github.ref_name }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Gate on the test suite
+        # A tag is not a promise that main was green when it was cut, and
+        # nothing stops someone tagging a branch. Re-run the checks against the
+        # tagged tree rather than trusting a run from another commit.
+        run: |
+          bash .claude/hooks/test-hooks.sh
+          bash scripts/verify-repo.sh
+
+      - name: Extract the notes for this version
+        id: notes
+        # Fails when CHANGELOG.md has no section for the tag. Better to reject
+        # the release than to publish empty notes nobody goes back to fill in.
+        run: |
+          set -euo pipefail
+          bash scripts/release-notes.sh "${GITHUB_REF_NAME}" > /tmp/notes.md
+          echo "--- notes ---"
+          cat /tmp/notes.md
+
+      - name: Refuse to overwrite an existing release
+        # `gh release create` on an existing tag fails anyway, but with a less
+        # obvious message. Say what happened.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            echo "::error::a release already exists for ${GITHUB_REF_NAME}."
+            echo "Delete it first, or push a new tag. This workflow never edits"
+            echo "a published release."
+            exit 1
+          fi
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --verify-tag \
+            --notes-file /tmp/notes.md
+          gh release view "${GITHUB_REF_NAME}" --json url --jq '.url'
