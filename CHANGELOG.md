@@ -14,6 +14,7 @@ an additive one — a new optional config key, say — is a minor.
 ## [1.3.0] - 2026-09-12
 
 ### Added
+
 - `install.sh` prunes hook entries that point at a guard this version no longer
   ships, and removes the orphaned file. A merge preserves whatever is already
   wired, which is right for your own hooks and wrong for one of ours that was
@@ -69,6 +70,7 @@ No change to the guards, the hook contract, or the config schema. Supply-chain
 hardening and documentation of what was already true.
 
 ### Changed
+
 - Actions are pinned to commit SHAs (`actions/checkout` v4.4.0,
   `actions/setup-python` v5.6.0) with the tag in a trailing comment. A floating
   `@v4` resolves to whatever that mutable tag points at today.
@@ -80,6 +82,7 @@ hardening and documentation of what was already true.
   untested, and the README says so rather than implying portability.
 
 ### Added
+
 - `CONTRIBUTING.md` records which five checks gate a merge, and warns that
   renaming a job leaves the old name required and never reported — which blocks
   every PR with no obvious cause.
@@ -89,6 +92,7 @@ hardening and documentation of what was already true.
 ## [1.2.0] - 2026-09-12
 
 ### Added
+
 - `.github/workflows/release.yml` — pushing a `vX.Y.Z` tag re-runs the suite
   against the tagged tree, lifts the notes out of this file, and publishes.
   Refuses a tag with no changelog section, and never edits an existing release.
@@ -101,6 +105,7 @@ hardening and documentation of what was already true.
   trailing `|| true`, which make a step incapable of failing.
 
 ### Fixed
+
 - `install.sh` copied the shipped `permissions` block into the target repo but
   never merged it into `settings.json`, so the deny rules were present on disk
   and enforcing nothing.
@@ -108,6 +113,7 @@ hardening and documentation of what was already true.
 ## [1.1.0] - 2026-09-12
 
 ### Added
+
 - `scripts/verify-repo.sh` — checks the things the hook harness cannot see:
   docs naming files that exist, every rule regex compiling, every guard wired
   to a matcher, and `blast-radius-guard` registered under both matchers.
@@ -117,6 +123,7 @@ hardening and documentation of what was already true.
   required check cannot redden on a runner-image bump.
 
 ### Changed
+
 - The lint job is blocking. It previously carried both `continue-on-error` and
   a trailing `|| true`, so it was incapable of failing.
 - Documented the actual version floors: Python 3.9 (PEP 585 generics) and
@@ -127,6 +134,7 @@ hardening and documentation of what was already true.
 Initial public release.
 
 ### Added
+
 - **`blast-radius-guard`** — blocks irreversible Bash commands, warns on edits
   to protected files. Two severities chosen by escape hatch: Bash can carry an
   `ALLOW_BLAST_RADIUS=1` override, an Edit envelope cannot.
@@ -154,6 +162,7 @@ Initial public release.
 - `CONTRIBUTING.md` and this changelog.
 
 ### Fixed
+
 - `install.sh` no longer fails when its output is piped to a consumer that
   exits early (`head`, `grep -q`). Those close the pipe, and the next write
   raised EPIPE which `set -e` turned into a failed install — non-deterministically,
