@@ -1,0 +1,113 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  harness:
+    # The repo's own thesis is "test your hooks -- their failure mode is
+    # silence." A guardrails repo without this job would not be credible.
+    name: hooks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # macOS is not redundant: the guards use bash regex and BSD vs GNU
+        # userland differ (sed -i, grep flags, awk). Most contributors are on
+        # macOS; most CI is Linux. Both have to stay green.
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install jq
+        # jq builds the hook input envelopes. Without it the shell guards no-op
+        # and every assertion would trivially "pass" -- so the harness refuses
+        # to run rather than reporting a false green.
+        run: |
+          if ! command -v jq >/dev/null 2>&1; then
+            if [ "$RUNNER_OS" = "macOS" ]; then brew install jq; else sudo apt-get update && sudo apt-get install -y jq; fi
+          fi
+          jq --version
+
+      - name: Report bash version
+        # macOS runners historically shipped bash 3.2, which lacks features the
+        # guards rely on. Printing it makes a version-specific failure obvious.
+        run: bash --version | head -1
+
+      - name: Run the hook harness
+        run: bash .claude/hooks/test-hooks.sh
+
+      - name: Verify the harness actually detects a broken guard
+        # A suite that has never failed has not been shown to work. Break a
+        # guard on purpose and assert the harness goes red.
+        shell: bash
+        run: |
+          cp .claude/hooks-scripts/blast-radius-guard.py /tmp/guard.bak
+          python3 - <<'PY'
+          p = ".claude/hooks-scripts/blast-radius-guard.py"
+          s = open(p).read()
+          old = "def check_bash(command: str) -> int:\n    if not command:"
+          new = "def check_bash(command: str) -> int:\n    return 0\n    if not command:"
+          assert old in s, "sabotage target not found -- update this step"
+          open(p, "w").write(s.replace(old, new, 1))
+          PY
+          if bash .claude/hooks/test-hooks.sh >/dev/null 2>&1; then
+            echo "::error::harness passed against a deliberately broken guard"
+            cp /tmp/guard.bak .claude/hooks-scripts/blast-radius-guard.py
+            exit 1
+          fi
+          echo "harness correctly detected the broken guard"
+          cp /tmp/guard.bak .claude/hooks-scripts/blast-radius-guard.py
+
+      - name: Install into a scratch repo
+        # Exercises the path most users take first. Catches the class of bug
+        # where a stray file breaks `cp` and aborts a `set -e` install midway.
+        shell: bash
+        run: |
+          TARGET="$(mktemp -d)/scratch"
+          mkdir -p "$TARGET/.claude"
+          printf '{}' > "$TARGET/package.json"
+          printf '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"echo existing"}]}]}}' \
+            > "$TARGET/.claude/settings.json"
+          ./install.sh "$TARGET"
+          # The pre-existing hook must survive the merge.
+          grep -q "echo existing" "$TARGET/.claude/settings.json" \
+            || { echo "::error::install clobbered an existing hook"; exit 1; }
+          # And a second run must be a no-op.
+          ./install.sh "$TARGET" | grep -q "0 hook(s) added" \
+            || { echo "::error::install is not idempotent"; exit 1; }
+
+  lint:
+    name: lint (advisory)
+    runs-on: ubuntu-latest
+    # Advisory on purpose, and for the same reason config-sync-guard is: a
+    # check that cannot be verified before it runs should report, not block.
+    # Promote this to required once it has been green for a while.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shellcheck
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          find . -name '*.sh' -not -path './.git/*' -print0 \
+            | xargs -0 shellcheck -S warning || true
+
+      - name: python syntax
+        run: |
+          find . -name '*.py' -not -path './.git/*' -print0 \
+            | xargs -0 -n1 python3 -m py_compile
+          echo "all python files parse"
+
+      - name: json validity
+        run: |
+          for f in $(find . -name '*.json' -not -path './.git/*'); do
+            python3 -c "import json,sys;json.load(open('$f'))" || exit 1
+          done
+          echo "all json files parse"

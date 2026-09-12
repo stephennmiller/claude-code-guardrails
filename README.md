@@ -1,5 +1,7 @@
 # claude-code-guardrails
 
+[![test](https://github.com/stephennmiller/claude-code-guardrails/actions/workflows/test.yml/badge.svg)](https://github.com/stephennmiller/claude-code-guardrails/actions/workflows/test.yml)
+
 **Enforce your CLAUDE.md instead of just writing it.**
 
 Most CLAUDE.md files contain some version of "don't run this without asking."
@@ -163,6 +165,10 @@ short version:
 9. **Constrain the agent, not the human.** These are Claude Code hooks, not git
    hooks; contributors are unaffected.
 10. **Test the hooks.** Their failure mode is silence.
+
+## Contributing
+
+Every change to a guard needs an assertion in `test-hooks.sh`. See `CONTRIBUTING.md`.
 
 ## License
 
