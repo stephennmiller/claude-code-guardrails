@@ -10,13 +10,13 @@ time before the rule existed. If you only read one, read the first.
 A hook registered for `Write|Edit|MultiEdit` does not run on `Bash`. So this is
 guarded:
 
-```
+```text
 Edit  vitest.config.ts   ->  blocked
 ```
 
 and this is not:
 
-```
+```text
 Bash  sed -i '' 's/74/0/' vitest.config.ts   ->  allowed
 ```
 
@@ -214,7 +214,7 @@ its types. A hook sees one diff hunk and has no type information.
 
 ## 7. Fail open, always
 
-```
+```text
 exit 0 = allow    exit 2 = block    exit 1 = internal error, NON-BLOCKING
 ```
 
@@ -254,7 +254,7 @@ npm run test -- --run # correct
 
 This is the single likeliest way to hit the watch guard, so the flag before `--`
 must **not** count as a one-shot marker. The guard computes what npm actually
-forwards (everything after `-- `, or nothing at all) and looks for run markers
+forwards (everything after the `--` separator, or nothing at all) and looks for run markers
 only there.
 
 ---

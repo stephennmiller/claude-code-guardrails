@@ -35,7 +35,7 @@ stop and ask.
 
 Every hook obeys it. Breaking it is a breaking change.
 
-```
+```text
 exit 0 = allow    exit 2 = block    exit 1 = internal error, NON-BLOCKING
 ```
 

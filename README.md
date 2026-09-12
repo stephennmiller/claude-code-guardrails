@@ -101,7 +101,7 @@ Catch a component nothing registered, the "exists on disk, never deploys" bug:
 
 A block prints its own override:
 
-```
+```text
 Blocked: push schema to the linked project -- high blast radius.
   Writes to the production project. No rollback.
 If this is genuinely what you want, confirm with the user first, then

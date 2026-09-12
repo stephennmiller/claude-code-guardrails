@@ -53,7 +53,7 @@ to be configured. Add fixture rules there as needed.
 
 Every hook obeys it, and a change that breaks it is a breaking change:
 
-```
+```text
 exit 0 = allow    exit 2 = block    exit 1 = internal error, NON-BLOCKING
 ```
 
