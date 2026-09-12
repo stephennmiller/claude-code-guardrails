@@ -109,11 +109,22 @@ jobs:
         # clearing the three deliberate findings below warning: a single-quoted
         # grep pattern (SC2016) and two `sed 's/^/  /'` indents (SC2001).
         #
-        # shellcheck comes from apt, so its version floats with the runner
-        # image. If a bump ever turns an unrelated PR red, pin the version here
-        # rather than dropping back to advisory.
+        # Pinned to an exact release with a checksum, NOT apt. `apt-get install
+        # shellcheck` floats with the runner image, so a required check could
+        # turn red on a PR that changed nothing -- and `shellcheck=<version>`
+        # is not a fix, since it only pins to whatever Ubuntu currently
+        # packages. Bump SC_VERSION and SC_SHA256 together, deliberately.
+        env:
+          SC_VERSION: v0.11.0
+          SC_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
         run: |
-          sudo apt-get update && sudo apt-get install -y shellcheck
+          set -euo pipefail
+          url="https://github.com/koalaman/shellcheck/releases/download/${SC_VERSION}/shellcheck-${SC_VERSION}.linux.x86_64.tar.xz"
+          curl -fsSL "$url" -o shellcheck.tar.xz
+          echo "${SC_SHA256}  shellcheck.tar.xz" | sha256sum -c -
+          tar -xJf shellcheck.tar.xz
+          sudo install -m 0755 "shellcheck-${SC_VERSION}/shellcheck" /usr/local/bin/shellcheck
+          rm -rf shellcheck.tar.xz "shellcheck-${SC_VERSION}"
           shellcheck --version
           find . -name '*.sh' -not -path './.git/*' -print0 \
             | xargs -0 shellcheck -S warning
