@@ -82,6 +82,11 @@ every entry point to guarantee it.
 - **CI runs on macOS as well as Linux**, and under stock macOS bash 3.2. BSD and
   GNU userland differ on `sed -i`, `grep` and `awk`. The Python floor is 3.9
   (PEP 585 generics in annotations); the matrix enforces it.
+- **Windows is not supported and not tested.** The Python guards are already
+  portable (pathlib throughout, no POSIX-only calls), but ~940 lines of shell
+  across six files are not, and it is unconfirmed whether Claude Code on native
+  Windows invokes a shebang at all. Don't add the claim without a
+  `windows-latest` job: a hook that silently no-ops is worse than no hook.
 
 ## Don't
 

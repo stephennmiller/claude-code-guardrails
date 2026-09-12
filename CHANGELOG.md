@@ -10,7 +10,9 @@ to replace it. A schema or contract change requires a major bump.
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+- Stated the tested platforms. Linux and macOS are covered by CI; Windows is
+  untested and the README now says so rather than implying portability.
 
 ## [1.2.0] - 2026-09-12
 

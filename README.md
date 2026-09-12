@@ -38,6 +38,12 @@ Needs `python3` 3.9+, `jq`, and `bash` 3.2+ (stock macOS works). Merges into an
 existing `settings.json` without
 touching hooks already there. Idempotent. `--dry-run` prints the plan.
 
+Tested on Linux and macOS, both in CI. Windows is untested. WSL should work
+since it is Linux. Native Windows probably does not: the guards are invoked by
+shebang, and the shell layer wants `jq`, `sed` and `awk`. If a hook silently
+no-ops you are worse off than with no hook at all, so the claim stays off until
+a `windows-latest` job proves it.
+
 Then delete every rule that doesn't apply to you. The shipped config is
 illustrative, not a starting set. A guard that fires on correct code gets the
 whole file switched off inside a week, and the useful rules go with it.
