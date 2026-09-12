@@ -34,7 +34,8 @@ cd claude-code-guardrails
 ./install.sh /path/to/your/repo
 ```
 
-Needs `python3`, `jq`, `bash`. Merges into an existing `settings.json` without
+Needs `python3` 3.9+, `jq`, and `bash` 3.2+ (stock macOS works). Merges into an
+existing `settings.json` without
 touching hooks already there. Idempotent. `--dry-run` prints the plan.
 
 Then delete every rule that doesn't apply to you. The shipped config is

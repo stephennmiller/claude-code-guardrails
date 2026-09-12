@@ -2,7 +2,7 @@
 
 Claude Code hooks that make a CLAUDE.md's "don't run this" list executable.
 Six guards plus a test harness for the guards themselves. No runtime
-dependencies: `python3`, `jq`, `bash`.
+dependencies: `python3` 3.9+, `jq`, `bash` 3.2+.
 
 ## Layout
 
@@ -21,6 +21,7 @@ dependencies: `python3`, `jq`, `bash`.
 ```bash
 bash .claude/hooks/test-hooks.sh      # the whole suite, ~2s
 bash .claude/hooks/test-hooks.sh -v   # print hook output for failures
+bash scripts/verify-repo.sh           # docs, config regexes, hook wiring
 ./install.sh "$(mktemp -d)" --dry-run  # what an install would do
 ```
 
@@ -77,8 +78,9 @@ every entry point to guarantee it.
   EPIPE and abort a successful install. Route new output through those helpers.
 - **Two synthetic credentials live in `test-hooks.sh`** as fixtures. Secret
   scanners flag them. They are not real; dismiss rather than deleting the tests.
-- **CI runs on macOS as well as Linux.** BSD and GNU userland differ on `sed -i`,
-  `grep` and `awk`, and the guards lean on bash regex.
+- **CI runs on macOS as well as Linux**, and under stock macOS bash 3.2. BSD and
+  GNU userland differ on `sed -i`, `grep` and `awk`. The Python floor is 3.9
+  (PEP 585 generics in annotations); the matrix enforces it.
 
 ## Don't
 

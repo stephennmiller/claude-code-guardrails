@@ -10,7 +10,16 @@ to replace it. A schema or contract change requires a major bump.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+- `scripts/verify-repo.sh` — checks the things the hook harness cannot see:
+  docs naming files that exist, every rule regex compiling, every guard wired
+  to a matcher, and `blast-radius-guard` registered under both matchers.
+- CI: repo self-checks, a Python 3.9-3.13 matrix, and the harness under stock
+  macOS bash 3.2.
+
+### Changed
+- Documented the actual version floors: Python 3.9 (PEP 585 generics) and
+  bash 3.2.
 
 ## [1.0.0] - 2026-09-12
 

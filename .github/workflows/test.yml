@@ -43,6 +43,13 @@ jobs:
       - name: Run the hook harness
         run: bash .claude/hooks/test-hooks.sh
 
+      - name: Run the harness under stock macOS bash 3.2
+        # macOS still ships bash 3.2 at /bin/bash, and a shebang of
+        # `#!/bin/bash` gets that, not whatever brew put in PATH. Anyone on a
+        # stock Mac runs the guards under 3.2, so it has to stay supported.
+        if: runner.os == 'macOS'
+        run: /bin/bash .claude/hooks/test-hooks.sh
+
       - name: Verify the harness actually detects a broken guard
         # A suite that has never failed has not been shown to work. Break a
         # guard on purpose and assert the harness goes red.
@@ -115,3 +122,43 @@ jobs:
             python3 -c "import json,sys;json.load(open('$f'))" || exit 1
           done
           echo "all json files parse"
+
+  verify:
+    name: repo self-checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Docs, config regexes, and hook wiring
+        # Three silent failure modes the harness cannot see: a rule whose regex
+        # does not compile is dropped at runtime with a warning nobody reads; a
+        # guard missing from settings.json protects nothing; a doc naming a
+        # moved file sends the next reader somewhere useless.
+        run: bash scripts/verify-repo.sh
+
+  python:
+    name: python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The guards use PEP 585 builtin generics (list[Rule], tuple[str, ...])
+        # in annotations, which are evaluated at import on every version here.
+        # 3.9 is the floor; this matrix is what makes that claim true rather
+        # than assumed.
+        python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Guards import and the suite passes
+        run: |
+          python3 -V
+          for f in .claude/hooks-scripts/*.py; do python3 -c "
+          import importlib.util, sys
+          spec = importlib.util.spec_from_file_location('m', '$f')
+          spec.loader.exec_module(importlib.util.module_from_spec(spec))
+          " || { echo "::error::$f fails to import on Python ${{ matrix.python }}"; exit 1; }
+          done
+          bash .claude/hooks/test-hooks.sh
