@@ -2,174 +2,159 @@
 
 [![test](https://github.com/stephennmiller/claude-code-guardrails/actions/workflows/test.yml/badge.svg)](https://github.com/stephennmiller/claude-code-guardrails/actions/workflows/test.yml)
 
-**Enforce your CLAUDE.md instead of just writing it.**
+Claude Code hooks that enforce your CLAUDE.md.
 
-Most CLAUDE.md files contain some version of "don't run this without asking."
-The agent reads it, agrees, and runs it anyway three hours later — not from
-malice, but because that line is 200 lines up in a context window that has since
-filled with other things.
+Most CLAUDE.md files say "don't run this without asking" somewhere. The agent
+reads it, agrees, and runs it three hours later anyway. By then that line is 200
+lines up in a context window full of other things.
 
-This is a small set of Claude Code hooks that make those lines executable, plus
-a test harness so you can tell whether they still work.
+These hooks make those lines executable.
 
-It is not a skills collection. There are good ones already.
+## Guards
 
-```
-.claude/
-  guardrails.config.json    <- every project-specific rule lives here
-  settings.json             <- hook wiring
-  hooks-scripts/            <- the engine (6 guards, ~950 lines)
-  hooks/test-hooks.sh       <- 67 assertions, ~2s, no deps
-  commands/                 <- 4 slash commands
-templates/CLAUDE.md.template
-docs/PATTERNS.md            <- why each rule is shaped the way it is
-```
+Six scripts, wired to PreToolUse (Bash and Write/Edit) and PostToolUse.
 
-## The guards
+| Guard | Severity | Catches |
+|---|---|---|
+| `blast-radius-guard` | block / warn | Irreversible commands. Overwriting generated files, writing a remote DB, re-baselining snapshots, moving a ratchet. |
+| `watch-mode-guard` | block | A test runner started in watch mode. Hangs the tool call until it times out. |
+| `git-safety` | block | Hook-bypass flags, commits to a protected branch, force-push. |
+| `secret-scan-guard` | block | A real-looking credential written into a tracked file. |
+| `config-sync-guard` | advisory | One half of a coupled pair changing. CSP and the code that fetches a new origin. |
+| `auto-format-code` | none | Formats after an edit so the model's view matches disk. |
 
-| Guard | Event | Severity | What it stops |
-|---|---|---|---|
-| `blast-radius-guard.py` | Bash + Edit | **block** / warn | Irreversible commands: overwriting generated files, writing a remote DB, re-baselining snapshots, moving a ratchet |
-| `watch-mode-guard.py` | Bash | **block** | A test runner started in watch mode, which hangs the tool call until it times out |
-| `git-safety.sh` | Bash | **block** | Hook-bypass flags, commits to a protected branch, force-push |
-| `secret-scan-guard.py` | Edit | **block** | A real-looking credential written into a tracked file |
-| `config-sync-guard.py` | Edit | advisory | Changing one half of a coupled pair (CSP + the code that fetches; env schema + the platform's env vars) |
-| `auto-format-code.sh` | PostToolUse | — | Formats after an edit, so the model's view stays in sync with disk |
-
-The engine is generic. **Every project-specific rule is data** in
-`guardrails.config.json` — you should never need to edit a script to add a rule.
+Rules live in `.claude/guardrails.config.json`. The scripts are the engine and
+stay put. Adding a rule means editing config.
 
 ## Install
 
 ```bash
-git clone https://github.com/<you>/claude-code-guardrails
+git clone https://github.com/stephennmiller/claude-code-guardrails
 cd claude-code-guardrails
 ./install.sh /path/to/your/repo
 ```
 
-It copies `hooks-scripts/`, `hooks/` and `guardrails.config.json` into the
-target's `.claude/`, merges the hook wiring into `settings.json` (existing hooks
-preserved), and prints what to do next. `--dry-run` shows the plan.
+Needs `python3`, `jq`, `bash`. Merges into an existing `settings.json` without
+touching hooks already there. Idempotent. `--dry-run` prints the plan.
 
-Requires `python3`, `jq`, and `bash`.
+Then delete every rule that doesn't apply to you. The shipped config is
+illustrative, not a starting set. A guard that fires on correct code gets the
+whole file switched off inside a week, and the useful rules go with it.
 
-Then — and this is the part that matters — **delete every rule that does not
-apply to you.** The shipped config is illustrative, not a starting set. A guard
-that fires on correct code gets the whole file disabled within a week, and takes
-the useful rules with it.
-
-Verify:
+## Verify
 
 ```bash
-bash .claude/hooks/test-hooks.sh     # 67 passed, 0 failed
+bash .claude/hooks/test-hooks.sh
 ```
 
-Wire that into pre-push or CI. Hooks fail silently; an untested guard is
-indistinguishable from a guard with nothing to report.
+67 assertions, about two seconds, no network and no project dependencies. Wire
+it into pre-push or CI. Hooks fail silently, so a broken guard and a guard with
+nothing to report look identical.
+
+CI runs the suite on Linux and macOS, breaks a guard on purpose to confirm the
+suite goes red, and installs into a scratch repo.
 
 ## Writing a rule
 
-A blocking Bash rule:
+Block a command:
 
 ```json
 {
   "name": "push schema to the linked project",
   "pattern": "<your-cli>\\s+db\\s+push",
-  "message": "Writes to the LINKED (production) project. There is no rollback."
+  "message": "Writes to the production project. No rollback."
 }
 ```
 
-An advisory edit reminder:
+Remind on an edit:
 
 ```json
 {
   "name": "CSP allowlist",
   "path": "(^|/)csp\\.json$",
   "content": "(?i)connect-src|script-src",
-  "message": "If code now talks to a new third-party host, add a matching CSP source."
+  "message": "New third-party host in the code? Add a matching CSP source."
 }
 ```
 
-A "this component is not registered anywhere" check — the generalized form of
-*exists on disk, never deploys*:
+Catch a component nothing registered, the "exists on disk, never deploys" bug:
 
 ```json
 {
-  "name": "edge function not declared",
+  "name": "function not declared",
   "path": "functions/(?!_shared/)[^/]+/.*\\.ts$",
   "requires_declaration": {
     "capture_name_from": "functions/([^/]+)/",
     "manifest": "config.toml",
     "must_contain": "[functions.{name}]"
   },
-  "message": "No manifest entry, so the deploy will not include it."
+  "message": "No manifest entry. The deploy will skip it."
 }
 ```
 
-Blocked commands print the override in the failure message:
+A block prints its own override:
 
 ```
 Blocked: push schema to the linked project -- high blast radius.
-  Writes to the LINKED (production) project. There is no rollback.
+  Writes to the production project. No rollback.
 If this is genuinely what you want, confirm with the user first, then
 re-run prefixed with ALLOW_BLAST_RADIUS=1.
 ```
 
-The override counts **only when written into the command** — never from the
-environment, and never from a quoted mention. The goal is one deliberate
-decision per command, not a switch someone flips once in a shell profile and
-forgets.
+The override only counts when it's written into the command. Not from the
+environment, where one line in a shell profile would disable everything for the
+session. Not from a quoted mention either. One decision per command.
 
-## Slash commands
+## Commands
 
-| Command | What it does |
+| Command | Does |
 |---|---|
-| `/review-pr [N] [--wait]` | Pulls the automated review off a PR into your session — staleness-gated, no browser copy-paste |
-| `/review-changes` | Reviews uncommitted work before it becomes a commit |
-| `/implement-spec <name>` | Spec -> plan -> test-first implementation |
-| `/validate-spec <name>` | Audits an implementation against the spec, read-only |
+| `/review-pr [N] [--wait]` | Pulls the automated review off a PR into your session |
+| `/review-changes` | Reviews uncommitted work before it's a commit |
+| `/implement-spec <name>` | Spec, plan, then test-first implementation |
+| `/validate-spec <name>` | Audits an implementation against the spec |
 
-`/review-pr` is the one worth stealing even if you take nothing else. Most of
-its length is two gates that are easy to get wrong: a sticky review comment is
-edited in place, so a stale review is byte-identical to a fresh one, and a
-reviewer that reports progress posts *before* it has finished.
+`/review-pr` is the one to steal. Most of its length is two gates that are easy
+to get wrong. A sticky review comment is edited in place, so a stale review is
+byte-identical to a fresh one, and a reviewer that reports progress posts before
+it has finished.
 
-## What this does not do
+## Limits
 
-- **It is not a sandbox.** `sed -i` reaches files the edit rules watch. These
-  are speed bumps against agent slips. For a real boundary use
-  `permissions.deny`.
-- **It does not lint.** Style and vulnerability rules belong in a linter that
-  can see whole files and types. A hook sees one diff hunk.
-- **It will not make a bad CLAUDE.md good.** It makes an already-good one
-  binding. Start with `templates/CLAUDE.md.template`.
+Not a sandbox. `sed -i` still reaches files the edit rules watch. These are
+speed bumps for agent slips. Use `permissions.deny` for a real boundary.
 
-## Design notes
+Not a linter. A hook sees one diff hunk with no type information. Style and
+vulnerability rules belong somewhere that can see whole files.
 
-`docs/PATTERNS.md` is the reasoning, and is the actual point of the repo. The
-short version:
+Won't fix a bad CLAUDE.md. It makes a good one binding. There's a starting point
+in `templates/CLAUDE.md.template`.
 
-1. **The matcher gap is a bypass.** A `Write|Edit`-only guard does nothing about
-   `sed -i` via Bash. Register file-subject guards under both matchers.
-2. **Mentioning a command is not running it.** Strip heredoc bodies, then quoted
-   spans — in that order — or the guard blocks its own documentation.
-3. **Exemptions must fail closed.** A carve-out may only read text that cannot
-   have been stripped.
-4. **Pick severity by escape hatch, not by badness.** Bash can carry an
-   override; an Edit envelope cannot, so blocking an edit is a wall with no door.
-5. **Advisory is a distinct tool.** When half the coupled surfaces live outside
-   the repo, a reminder is honest and a block is false positives.
-6. **A guard that cries wolf takes the good rules with it.**
-7. **Fail open.** A crashing hook must never wedge a tool call.
-8. **Anchor matches.** `test` must not match `test:e2e`.
-9. **Constrain the agent, not the human.** These are Claude Code hooks, not git
-   hooks; contributors are unaffected.
-10. **Test the hooks.** Their failure mode is silence.
+## Design
+
+`docs/PATTERNS.md` has the reasoning. Short version:
+
+1. A `Write|Edit` guard does nothing about `sed -i` via Bash. Register
+   file-subject guards under both matchers.
+2. Strip heredoc bodies, then quoted spans, in that order. Otherwise the guard
+   blocks its own documentation.
+3. Exemptions must read raw text. One that reads normalized text fails open.
+4. Pick severity by escape hatch. Bash can carry an override, an Edit envelope
+   can't, so blocking an edit is a wall with no door.
+5. Advisory is a separate tool. When half the coupled surfaces live outside the
+   repo, a reminder is honest and a block is noise.
+6. A guard that cries wolf takes the good rules down with it.
+7. Fail open. A crashing hook must never wedge a tool call.
+8. Anchor matches. `test` must not match `test:e2e`.
+9. Constrain the agent, not the human. These are Claude Code hooks, not git
+   hooks. Contributors aren't affected.
+10. Test the hooks. Their failure mode is silence.
 
 ## Contributing
 
-Every change to a guard needs an assertion in `test-hooks.sh`. See `CONTRIBUTING.md`.
+Every change to a guard needs an assertion in `test-hooks.sh`. See
+`CONTRIBUTING.md`.
 
 ## License
 
-MIT. See `LICENSE`.
+MIT.
