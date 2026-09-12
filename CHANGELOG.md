@@ -10,9 +10,30 @@ to replace it. A schema or contract change requires a major bump.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [1.2.1] - 2026-09-12
+
+No change to the guards, the hook contract, or the config schema. Supply-chain
+hardening and documentation of what was already true.
+
 ### Changed
+- Actions are pinned to commit SHAs (`actions/checkout` v4.4.0,
+  `actions/setup-python` v5.6.0) with the tag in a trailing comment. A floating
+  `@v4` resolves to whatever that mutable tag points at today.
+- The repository runs GitHub-owned actions only. Pinning protects the actions
+  in use; this protects against the ones that are not.
+- `release.yml` declares `contents: write` on the job rather than at the top
+  level, where every job in the file would inherit it.
 - Stated the tested platforms. Linux and macOS are covered by CI; Windows is
-  untested and the README now says so rather than implying portability.
+  untested, and the README says so rather than implying portability.
+
+### Added
+- `CONTRIBUTING.md` records which five checks gate a merge, and warns that
+  renaming a job leaves the old name required and never reported — which blocks
+  every PR with no obvious cause.
+- `CONTRIBUTING.md` documents how to bump the three pinned third-party
+  versions (two actions and shellcheck).
 
 ## [1.2.0] - 2026-09-12
 
@@ -90,7 +111,8 @@ Initial public release.
 
 [kac]: https://keepachangelog.com/en/1.1.0/
 [semver]: https://semver.org/spec/v2.0.0.html
-[Unreleased]: https://github.com/stephennmiller/claude-code-guardrails/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/stephennmiller/claude-code-guardrails/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/stephennmiller/claude-code-guardrails/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/stephennmiller/claude-code-guardrails/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/stephennmiller/claude-code-guardrails/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/stephennmiller/claude-code-guardrails/releases/tag/v1.0.0
