@@ -10,7 +10,16 @@ to replace it. A schema or contract change requires a major bump.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [1.2.0] - 2026-09-12
+
 ### Added
+- `.github/workflows/release.yml` — pushing a `vX.Y.Z` tag re-runs the suite
+  against the tagged tree, lifts the notes out of this file, and publishes.
+  Refuses a tag with no changelog section, and never edits an existing release.
+- `scripts/release-notes.sh` — prints the section a tag would publish. Run it
+  before tagging.
 - `settings.json` ships a small `permissions.deny` list, and `install.sh` now
   merges it as a union. Hooks are speed bumps with overrides; deny is a wall.
 - Two rules drawn from real failures: a reminder that CI workflows and branch
@@ -79,6 +88,7 @@ Initial public release.
 
 [kac]: https://keepachangelog.com/en/1.1.0/
 [semver]: https://semver.org/spec/v2.0.0.html
-[Unreleased]: https://github.com/stephennmiller/claude-code-guardrails/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/stephennmiller/claude-code-guardrails/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/stephennmiller/claude-code-guardrails/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/stephennmiller/claude-code-guardrails/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/stephennmiller/claude-code-guardrails/releases/tag/v1.0.0
