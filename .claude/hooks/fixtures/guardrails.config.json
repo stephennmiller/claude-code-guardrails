@@ -34,8 +34,17 @@
       {
         "name": "discard uncommitted work",
         "$comment": "Mirrors the shipped rule verbatim. Unlike the testcli patterns, git is git everywhere -- this is the real regex, and these assertions are what keep its precision honest.",
-        "pattern": "\\bgit\\s+(?:checkout\\s+(?:\\S+\\s+)*--(?:\\s|$)|checkout\\s+\\.(?:\\s|$)|checkout\\s+(?:\\S+\\s+)*(?:-f\\b|--force\\b)|restore\\b(?![^;&|]*--staged)|reset\\s+--hard\\b|clean\\b(?=[^;&|]*\\s-\\S*f)(?![^;&|]*(?:--dry-run|\\s-\\S*n\\b)))",
+        "pattern": "\\bgit\\s+(?:restore\\b(?![^;&|]*--staged)|reset\\s+--hard\\b|clean\\b(?=[^;&|]*\\s-\\S*f)(?![^;&|]*(?:--dry-run|\\s-\\S*n\\b)))",
         "message": "Discards uncommitted work. Commit or stash first."
+      },
+      {
+        "name": "check out a file over your uncommitted changes",
+        "$comment": "Mirrors the shipped rule verbatim; verify-repo.sh asserts they stay identical.",
+        "pattern": "(?:^|[\\s;&|])git\\s+checkout\\b",
+        "message": "Checks out over uncommitted work. Commit or stash first.",
+        "exempt": {
+          "predicate": "git_checkout_cannot_lose_work"
+        }
       }
     ],
     "edit_rules": [

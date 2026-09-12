@@ -10,7 +10,7 @@ dependencies: `python3` 3.9+, `jq`, `bash` 3.2+.
 |------|------|
 | `.claude/hooks-scripts/` | The six guards. `_guardrails.py` is the shared engine. |
 | `.claude/guardrails.config.json` | Every project-specific rule. Data, not code. |
-| `.claude/hooks/test-hooks.sh` | 84 assertions, ~2s. |
+| `.claude/hooks/test-hooks.sh` | 92 assertions, ~2s. |
 | `.claude/hooks/fixtures/` | Config the tests run against, so they exercise the engine. |
 | `.claude/settings.json` | Hook wiring, copied into the user's repo by `install.sh`. |
 | `docs/PATTERNS.md` | Why each rule is shaped the way it is. Read before writing one. |
@@ -56,7 +56,7 @@ every entry point to guarantee it.
   time instead, it gets reconstructed from `git log`, and whatever missed a
   commit subject is gone.
 - **Test the false positives too.** Half a guard's value is staying quiet on
-  correct code. 46 of the 79 `expect` calls assert a guard says nothing.
+  correct code. 51 of the 87 `expect` calls assert a guard says nothing.
 - **No assertions inside subshells.** `( cd X; expect ... )` discards the
   counter increments, so a failing assertion prints in red and leaves the suite
   green. Set `RUN_DIR` instead.

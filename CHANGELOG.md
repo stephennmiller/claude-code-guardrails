@@ -29,6 +29,12 @@ to replace it. A schema or contract change requires a major bump.
 - `verify-repo.sh` asserts that rules mirrored into the test fixtures have not
   drifted from the shipped config. A drifted mirror keeps the suite green while
   the rule users actually run is wrong.
+- `blast_radius` rules can name an `exempt.predicate` from the registry in
+  `_guardrails.py`, for carve-outs a regex cannot decide. The first one closes
+  the bare `git checkout <path>` form: it is syntactically identical to
+  `git checkout <branch>`, so the predicate asks git in git's own resolution
+  order — a name resolving to a commit is a branch switch, a name that does not
+  but exists on disk is a pathspec that overwrites the working tree.
 - A `blast_radius` rule blocking commands that discard uncommitted work:
   pathspec checkout, `git restore` of the worktree, `git reset --hard`, forced
   checkout, and `git clean -f`. Unlike the rules around it this one is not

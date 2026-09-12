@@ -74,6 +74,24 @@ PROTBOX="$SANDBOX/protbox"
 mkdir -p "$PROTBOX"
 git -C "$PROTBOX" init -q -b main >/dev/null 2>&1 || true
 
+# A repo with REAL history. The boxes above have no commits, so every name
+# fails to resolve and the branch-vs-path predicate is never actually
+# exercised -- it would pass for the wrong reason.
+REFBOX="$SANDBOX/refbox"
+mkdir -p "$REFBOX"
+git -C "$REFBOX" init -q -b main >/dev/null 2>&1 || true
+echo 'tracked content' > "$REFBOX/tracked.txt"
+git -C "$REFBOX" add tracked.txt >/dev/null 2>&1 || true
+git -C "$REFBOX" -c user.email=t@e.st -c user.name=Test \
+    commit -q -m "test: seed" >/dev/null 2>&1 || true
+git -C "$REFBOX" branch existing-branch >/dev/null 2>&1 || true
+# A branch name that ALSO exists on disk -- `main` the branch beside `main/`
+# the directory is an everyday layout. Without a ref lookup, a path-existence
+# test alone blocks the branch switch, which is the cry-wolf case that gets a
+# rule deleted.
+git -C "$REFBOX" branch shadowed >/dev/null 2>&1 || true
+mkdir -p "$REFBOX/shadowed"
+
 # --- assertions ------------------------------------------------------------
 
 # expect <expected-exit> <name> <script> <json-envelope> [substring]
@@ -212,6 +230,42 @@ expect 0 "allows a dry-run clean" blast-radius-guard.py \
 # PATTERNS.md section 2: talking about a command is not running it.
 expect 0 "allows a quoted mention in a commit message" blast-radius-guard.py \
     "$(bash_envelope 'git commit -m "docs: why git reset --hard is blocked"')" ""
+
+section "blast-radius-guard.py -- branch or pathspec (exempt predicate)"
+
+# `git checkout <path>` and `git checkout <branch>` are the same string shape;
+# only the repo knows which. A regex must miss one or cry wolf on the other, so
+# the carve-out asks git, in git's own resolution order. This is the form that
+# destroyed real work twice before the predicate existed.
+RUN_DIR="$REFBOX"
+
+expect 2 "blocks a BARE pathspec checkout (no --)" blast-radius-guard.py \
+    "$(bash_envelope 'git checkout tracked.txt')" "Blocked"
+
+expect 0 "allows checking out a name that resolves to a commit" blast-radius-guard.py \
+    "$(bash_envelope 'git checkout existing-branch')"
+
+expect 0 "allows a bare branch switch" blast-radius-guard.py \
+    "$(bash_envelope 'git checkout main')"
+
+expect 0 "allows a commit-ish" blast-radius-guard.py \
+    "$(bash_envelope 'git checkout HEAD')"
+
+# git errors on a name that is neither; blocking it would be noise.
+expect 0 "allows a name that is neither ref nor file" blast-radius-guard.py \
+    "$(bash_envelope 'git checkout no-such-thing')"
+
+expect 0 "allows a branch switch when a file shares the branch name" blast-radius-guard.py \
+    "$(bash_envelope 'git checkout shadowed')"
+
+# -f discards local modifications even when the target IS a branch.
+expect 2 "blocks a forced switch to a real branch" blast-radius-guard.py \
+    "$(bash_envelope 'git checkout -f existing-branch')" "Blocked"
+
+# The separator means "these are files" no matter what they resolve to.
+expect 2 "blocks an explicit pathspec even when it names a ref" blast-radius-guard.py \
+    "$(bash_envelope 'git checkout -- main')" "Blocked"
+RUN_DIR="$ORIGIN"
 
 section "blast-radius-guard.py -- scan_raw and DOTALL"
 

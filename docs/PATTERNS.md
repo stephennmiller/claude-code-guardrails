@@ -103,6 +103,26 @@ deploy-cli gen types --db-url postgresql://localhost/db > "src/types/generated.t
 
 Rule: **an exemption may only ever look at text that cannot have been stripped.**
 
+### When the carve-out is not a regex
+
+Some carve-outs are not decidable from the string at all. `git checkout main`
+and `git checkout main.py` differ only in what the *repository* says the word
+means, so a regex must either miss the destructive form or block every branch
+switch — and a rule that blocks every branch switch gets deleted, taking the
+rest of the file with it.
+
+For these, `exempt.predicate` names a function from the registry in
+`_guardrails.py`, and the rule stays declarative in config. The predicate for
+checkout asks git in **git's own resolution order**: a name that resolves to a
+commit is a branch switch, which git refuses rather than performs when it would
+lose changes; a name that does not resolve but exists on disk is a pathspec,
+which overwrites the working tree silently. Agreeing with git's precedence is
+what makes it precise instead of heuristic.
+
+The same fail-closed rule applies, and one extra: a predicate that cannot parse
+what it was handed must **not** exempt. Returning "I don't know" as "allow" is
+how a carve-out becomes a bypass.
+
 Two more traps in the same rule, both found the hard way:
 
 - **`>` vs `>>`.** A pattern matching a single `>` matches the first bracket of
