@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-> Agent-facing context for <project>. Aim for <= 300 lines. Everything else is
+> Agent-facing context for `<project>`. Aim for <= 300 lines. Everything else is
 > cross-referenced and loaded on demand.
 
 <!--
@@ -119,18 +119,18 @@ Mark which are slow and which are release gates.
      SYMPTOM first, because the symptom is what the next person will search for,
      and it rarely resembles the cause. -->
 
-- **<Trap>** — what happens, why, and what to do instead. Include the exact
+- **`<Trap>`** — what happens, why, and what to do instead. Include the exact
   error text if it is short; that is what gets pasted into a search.
-- **<Command that looks safe but is not>** — ...
-- **<Tool whose default is wrong here>** — ...
+- **`<Command that looks safe but is not>`** — ...
+- **`<Tool whose default is wrong here>`** — ...
 
 ## Conventions (rules, not suggestions)
 
 Only the ones a competent engineer would otherwise get wrong. Everything a
 linter enforces belongs in the linter, not here.
 
-- **<Invariant>** — ...
-- **<Pattern to imitate>** — name the canonical file to copy.
+- **`<Invariant>`** — ...
+- **`<Pattern to imitate>`** — name the canonical file to copy.
 
 ## Do / Don't
 
@@ -138,7 +138,7 @@ linter enforces belongs in the linter, not here.
 - **Don't** add comments that restate the code. Comment the *why*.
 - **Don't** create new docs unless asked.
 - **Don't** change lint/coverage thresholds — they are release gates.
-- **Do** <the project-specific one that actually matters>.
+- **Do** `<the project-specific one that actually matters>`.
 
 ## CI (what actually runs on PRs)
 
