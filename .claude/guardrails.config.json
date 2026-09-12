@@ -56,6 +56,21 @@
         ],
         "scan_raw": true,
         "message": "Release commits are owned by CI, which resolves the version from the branch. Hand-authoring one desyncs the tag, the commit and the changelog."
+      },
+      {
+        "name": "discard uncommitted work",
+        "$comment": "Unlike the rules around it, this one is NOT illustrative -- keep it. git is git in every repo, and these forms delete work that was never committed, so there is no reflog and no branch to recover from. Written after an agent ran `git checkout <file>` to undo its own test scratch and took an hour of unrelated uncommitted work with it. Safe forms are deliberately excluded: a branch switch refuses rather than discards, and -b / --staged / --soft / -n cannot lose anything.",
+        "pattern": "\\bgit\\s+(?:restore\\b(?![^;&|]*--staged)|reset\\s+--hard\\b|clean\\b(?=[^;&|]*\\s-\\S*f)(?![^;&|]*(?:--dry-run|\\s-\\S*n\\b)))",
+        "message": "Discards uncommitted work, and uncommitted work is not in git -- no reflog, no stash, nothing to recover from.\n  Commit or `git stash -u` first, then re-run.\n  Not blocked, because they cannot lose work: branch switches, `git checkout -b`, `git restore --staged`, `git reset` without `--hard`, `git clean -n`."
+      },
+      {
+        "name": "check out a file over your uncommitted changes",
+        "$comment": "The bare form `git checkout <path>` is the one that actually bites, and it is syntactically identical to `git checkout <branch>` -- only the repository knows which. A regex must therefore either miss it or block every branch switch, so the carve-out is a predicate that asks git, in git's own resolution order. Keep this rule: it is not illustrative.",
+        "pattern": "(?:^|[\\s;&|])git\\s+checkout\\b",
+        "message": "This overwrites files in the working tree with the committed version. Uncommitted work is not in git -- no reflog, no stash, nothing to recover from.\n  Commit or `git stash -u` first, then re-run.\n  Branch switches, `git checkout -b`, and checking out a name git resolves to a commit are all allowed: git refuses those rather than discarding your changes.",
+        "exempt": {
+          "predicate": "git_checkout_cannot_lose_work"
+        }
       }
     ],
     "$comment2": "edit_rules are ADVISORY (stderr, exit 0). An Edit call cannot carry an override, so blocking would be a wall with no escape hatch.",
@@ -142,6 +157,13 @@
         "path": "(^|/)(install\\.sh|\\.claude/settings\\.json|\\.claude/guardrails\\.config\\.json)$|(^|/)\\.claude/hooks-scripts/[^/]+\\.(py|sh)$",
         "content": null,
         "message": "This is a surface an installed user receives. If the change alters behaviour, add a line under `## [Unreleased]` in CHANGELOG.md now.\n  Written at release time instead, it gets reconstructed from git log, and whatever did not make it into a commit subject is lost.\n  Refactors, comments and test-only edits need nothing."
+      },
+      {
+        "name": "a shipped template that the installer does not copy",
+        "$comment": "The 'exists on disk, ships nowhere' shape, applied to this repo's own templates/. install.sh copies a NAMED list of files; nothing errors when a new or renamed one is missing from it, so the file is simply never delivered. This rule exists because the template itself sat unshipped for the project's whole history, reachable only from one README line.",
+        "path": "(^|/)templates/[^/]+$",
+        "content": null,
+        "message": "install.sh copies templates/ by name, not by glob. A new or renamed file here reaches nobody until it is added to that list, and nothing fails when it is missing -- it just never arrives.\n  Check all three:\n  1. install.sh copies it, and names it in the closing instructions\n  2. the scratch-install job in .github/workflows/test.yml asserts it arrives\n  3. CHANGELOG.md has a line under `## [Unreleased]`"
       }
     ]
   },

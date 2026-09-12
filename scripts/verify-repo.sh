@@ -24,6 +24,16 @@ bad()  { echo -e "  ${RED}x${NC} $*"; FAILED=1; }
 # until it stops catching real broken references.
 ILLUSTRATIVE="package.json config.toml vercel.json csp.json"
 
+# CHANGELOG.md is excluded on purpose. A changelog is a historical record: it
+# names files as they were at the time, so a renamed or deleted path is correct
+# there and wrong nowhere else. Scanning it would fail on every rename, forever,
+# and the only way back to green would be to make the changelog vaguer.
+DOC_FILES=()
+for f in *.md docs/*.md; do
+    [ -f "$f" ] || continue
+    [ "$f" = "CHANGELOG.md" ] || DOC_FILES+=("$f")
+done
+
 echo "== docs name files that exist =="
 # Backticked paths in markdown, minus prose fragments that only look like paths.
 while read -r ref; do
@@ -34,7 +44,7 @@ while read -r ref; do
         continue
     fi
     bad "doc references a missing path: $ref"
-done < <(grep -rhoE '`[A-Za-z0-9_./-]+\.(sh|py|json|md|yml|template)`' -- *.md docs/*.md 2>/dev/null \
+done < <(grep -rhoE '`[A-Za-z0-9_./-]+\.(sh|py|json|md|yml|template)`' -- "${DOC_FILES[@]}" 2>/dev/null \
          | tr -d '`' | sort -u)
 [ $FAILED -eq 0 ] && ok "every referenced path resolves"
 
@@ -121,6 +131,33 @@ else:
 PY
 
 echo
+echo "== rules mirrored into the fixtures have not drifted =="
+python3 - <<'INNER' || FAILED=1
+import json, sys
+
+# A rule that is universal rather than illustrative (git is git everywhere) is
+# carried in BOTH configs: the shipped one delivers it, the fixture one puts it
+# under test. Nothing else ties them together, so they can drift -- and the
+# fixture would keep passing while the rule users actually run is wrong. That is
+# exactly the silent failure this repo exists to prevent.
+def rules(path):
+    cfg = json.load(open(path))
+    return {r["name"]: r["pattern"] for r in cfg["blast_radius"]["bash_rules"]}
+
+shipped = rules(".claude/guardrails.config.json")
+fixture = rules(".claude/hooks/fixtures/guardrails.config.json")
+
+drift = [n for n in shipped.keys() & fixture.keys() if shipped[n] != fixture[n]]
+if drift:
+    for n in sorted(drift):
+        print(f"  x '{n}' differs between the shipped config and the fixture")
+        print(f"      shipped: {shipped[n]}")
+        print(f"      fixture: {fixture[n]}")
+    sys.exit(1)
+
+print(f"  . {len(shipped.keys() & fixture.keys())} mirrored rule(s) identical in both configs")
+INNER
+
 if [ $FAILED -eq 0 ]; then
     echo -e "${GREEN}verify-repo: all checks passed${NC}"; exit 0
 fi

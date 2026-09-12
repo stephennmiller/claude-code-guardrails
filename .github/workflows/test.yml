@@ -93,6 +93,25 @@ jobs:
           SECOND="$(./install.sh "$TARGET")"
           grep -q "0 hook(s) added" <<<"$SECOND" \
             || { echo "::error::install is not idempotent"; echo "$SECOND"; exit 1; }
+          # The template is the only thing that teaches a user which rules are
+          # worth writing. It was linked from the README and shipped nowhere,
+          # so an installed repo never saw it.
+          test -f "$TARGET/.claude/CLAUDE.md.template" \
+            || { echo "::error::install did not ship the CLAUDE.md template"; exit 1; }
+          # Reinstall must refresh an untouched file and never clobber an
+          # edited one. Provenance comes from .guardrails-manifest: comparing
+          # against the current shipped file cannot tell "user edited this"
+          # from "this is an older copy of ours" -- both merely differ.
+          printf '\n<!-- upstream -->\n' >> templates/CLAUDE.md.template
+          ./install.sh "$TARGET" >/dev/null
+          grep -q "upstream" "$TARGET/.claude/CLAUDE.md.template" \
+            || { echo "::error::an unmodified template was not refreshed"; exit 1; }
+          printf '\n<!-- mine -->\n' >> "$TARGET/.claude/CLAUDE.md.template"
+          printf '\n<!-- upstream two -->\n' >> templates/CLAUDE.md.template
+          ./install.sh "$TARGET" >/dev/null
+          grep -q "mine" "$TARGET/.claude/CLAUDE.md.template" \
+            || { echo "::error::install clobbered a locally edited template"; exit 1; }
+          git checkout templates/CLAUDE.md.template
 
   lint:
     name: lint

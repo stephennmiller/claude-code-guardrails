@@ -27,17 +27,20 @@ you need the latter, use permissions.deny, not a hook.
 Rules live in .claude/guardrails.config.json under "blast_radius".
 """
 import re
+import subprocess
 import sys
 from pathlib import Path
-from typing import NamedTuple, Optional
+from typing import Callable, NamedTuple, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _guardrails import (  # noqa: E402
     EDIT_TOOLS,
     changed_text,
     compile_optional,
+    get_predicate,
     load_config,
     normalize,
+    predicate,
     read_envelope,
     rule_flags,
     run,
@@ -96,6 +99,75 @@ def _redirects_onto(command: str, protected: str) -> bool:
     return False
 
 
+CHECKOUT = re.compile(r"(?:^|[\s;&|])git\s+checkout\s+(?P<args>[^;&|]*)")
+NEW_BRANCH_FLAG = re.compile(r"^-[bB]$")
+FORCE_FLAG = re.compile(r"^(-f|--force)$")
+
+
+def _is_ref(token: str) -> bool:
+    """Does this name resolve to a commit in the repo we are standing in?"""
+    try:
+        done = subprocess.run(
+            ["git", "rev-parse", "--verify", "--quiet", f"{token}^{{commit}}"],
+            capture_output=True, text=True, timeout=5,
+        )
+        return done.returncode == 0
+    except Exception:
+        return False
+
+
+@predicate("git_checkout_cannot_lose_work")
+def _checkout_cannot_lose_work(raw_command: str) -> bool:
+    """True when `git checkout ...` moves HEAD rather than overwriting files.
+
+    Regex cannot answer this: `git checkout main` and `git checkout main.py`
+    differ only in what the REPOSITORY says the word means. So ask git, in its
+    own resolution order -- a name that resolves to a commit is a branch switch,
+    which git refuses rather than performs when it would lose changes. A name
+    that does not resolve but exists on disk is a pathspec, and that silently
+    overwrites the working tree with no reflog and nothing to recover from.
+
+    Reads the RAW command, per PATTERNS.md section 3. An exemption that read
+    normalized text could have its own evidence stripped out from under it and
+    would then wave the dangerous form straight through.
+
+    Deliberately NOT exempt, whatever the arguments resolve to:
+      `--`      an explicit pathspec separator -- the user has already said
+                "these are files"
+      -f        discards local modifications even on an ordinary branch switch
+    A name that is neither a ref nor a path IS exempt: git errors out, which is
+    harmless. The residual false negative is a branch and a file sharing a name,
+    where git itself prefers the branch -- so agreeing with git is correct.
+    """
+    found = CHECKOUT.search(raw_command)
+    if not found:
+        # The rule matched something this predicate cannot parse. Do not exempt.
+        return False
+
+    tokens = found.group("args").split()
+    if any(tok == "--" for tok in tokens):
+        return False
+    if any(FORCE_FLAG.match(tok) for tok in tokens):
+        return False
+
+    skip_next = False
+    for tok in tokens:
+        if skip_next:
+            skip_next = False
+            continue
+        if NEW_BRANCH_FLAG.match(tok):
+            # The name after -b is a branch being CREATED; it need not exist.
+            skip_next = True
+            continue
+        if tok.startswith("-"):
+            continue
+        if _is_ref(tok):
+            continue
+        if Path(tok).exists():
+            return False
+    return True
+
+
 class BashRule(NamedTuple):
     name: str
     pattern: re.Pattern
@@ -116,8 +188,14 @@ class BashRule(NamedTuple):
     # look at text that cannot have been stripped.
     exempt_matches: Optional[re.Pattern] = None
     exempt_unless_redirects_to: Optional[str] = None
+    # Named carve-out from the predicate registry, for what regex cannot decide.
+    # "Is this argument a branch or a file?" is answered by the repository, not
+    # by the shape of the string. Config references it by name.
+    exempt_predicate: Optional[Callable[[str], bool]] = None
 
     def exempt(self, raw_command: str) -> bool:
+        if self.exempt_predicate is not None and self.exempt_predicate(raw_command):
+            return True
         if self.exempt_matches is None:
             return False
         if not self.exempt_matches.search(raw_command):
@@ -156,6 +234,7 @@ def _bash_rules() -> list[BashRule]:
                 scan_raw=bool(raw.get("scan_raw")),
                 exempt_matches=compile_optional(exempt.get("matches")),
                 exempt_unless_redirects_to=exempt.get("unless_redirects_to"),
+                exempt_predicate=get_predicate(exempt.get("predicate")),
             )
         )
     return rules

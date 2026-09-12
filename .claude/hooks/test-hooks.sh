@@ -68,6 +68,30 @@ GITBOX="$SANDBOX/gitbox"
 mkdir -p "$GITBOX"
 git -C "$GITBOX" init -q -b feat/guardrails-test >/dev/null 2>&1 || true
 
+# Same, but ON a protected branch, so the protected-branch checks are exercised
+# rather than skipped.
+PROTBOX="$SANDBOX/protbox"
+mkdir -p "$PROTBOX"
+git -C "$PROTBOX" init -q -b main >/dev/null 2>&1 || true
+
+# A repo with REAL history. The boxes above have no commits, so every name
+# fails to resolve and the branch-vs-path predicate is never actually
+# exercised -- it would pass for the wrong reason.
+REFBOX="$SANDBOX/refbox"
+mkdir -p "$REFBOX"
+git -C "$REFBOX" init -q -b main >/dev/null 2>&1 || true
+echo 'tracked content' > "$REFBOX/tracked.txt"
+git -C "$REFBOX" add tracked.txt >/dev/null 2>&1 || true
+git -C "$REFBOX" -c user.email=t@e.st -c user.name=Test \
+    commit -q -m "test: seed" >/dev/null 2>&1 || true
+git -C "$REFBOX" branch existing-branch >/dev/null 2>&1 || true
+# A branch name that ALSO exists on disk -- `main` the branch beside `main/`
+# the directory is an everyday layout. Without a ref lookup, a path-existence
+# test alone blocks the branch switch, which is the cry-wolf case that gets a
+# rule deleted.
+git -C "$REFBOX" branch shadowed >/dev/null 2>&1 || true
+mkdir -p "$REFBOX/shadowed"
+
 # --- assertions ------------------------------------------------------------
 
 # expect <expected-exit> <name> <script> <json-envelope> [substring]
@@ -161,6 +185,87 @@ expect 2 "blocks through the combined -euxc spelling" blast-radius-guard.py \
 
 expect 0 "override still works inside a wrapper" blast-radius-guard.py \
     "$(bash_envelope 'bash -c "ALLOW_BLAST_RADIUS=1 testcli db push"')"
+
+section "blast-radius-guard.py -- discarding uncommitted work"
+
+# These forms delete work that was never committed: no reflog, no stash, no
+# branch. Added after an agent ran a pathspec checkout to undo its own test
+# scratch and destroyed an hour of unrelated uncommitted work in the same repo.
+expect 2 "blocks a pathspec checkout" blast-radius-guard.py \
+    "$(bash_envelope 'git checkout -- src/app.ts')" "Blocked"
+
+expect 2 "blocks checkout of the whole tree" blast-radius-guard.py \
+    "$(bash_envelope 'git checkout .')" "Blocked"
+
+expect 2 "blocks a forced checkout" blast-radius-guard.py \
+    "$(bash_envelope 'git checkout --force main')" "Blocked"
+
+expect 2 "blocks a worktree restore" blast-radius-guard.py \
+    "$(bash_envelope 'git restore src/app.ts')" "Blocked"
+
+expect 2 "blocks a hard reset" blast-radius-guard.py \
+    "$(bash_envelope 'git reset --hard HEAD~1')" "Blocked"
+
+expect 2 "blocks clean -fd" blast-radius-guard.py \
+    "$(bash_envelope 'git clean -xfd')" "Blocked"
+
+# Half a guard's value is silence. A branch switch REFUSES rather than
+# discarding, and none of these can lose work -- if any started firing, the
+# rule would get deleted and take the rest of the file with it.
+expect 0 "allows creating a branch" blast-radius-guard.py \
+    "$(bash_envelope 'git checkout -b fix/restore-behaviour')" ""
+
+expect 0 "allows switching branches" blast-radius-guard.py \
+    "$(bash_envelope 'git checkout main')" ""
+
+expect 0 "allows unstaging" blast-radius-guard.py \
+    "$(bash_envelope 'git restore --staged src/app.ts')" ""
+
+expect 0 "allows a soft reset" blast-radius-guard.py \
+    "$(bash_envelope 'git reset --soft HEAD~1')" ""
+
+expect 0 "allows a dry-run clean" blast-radius-guard.py \
+    "$(bash_envelope 'git clean -nd')" ""
+
+# PATTERNS.md section 2: talking about a command is not running it.
+expect 0 "allows a quoted mention in a commit message" blast-radius-guard.py \
+    "$(bash_envelope 'git commit -m "docs: why git reset --hard is blocked"')" ""
+
+section "blast-radius-guard.py -- branch or pathspec (exempt predicate)"
+
+# `git checkout <path>` and `git checkout <branch>` are the same string shape;
+# only the repo knows which. A regex must miss one or cry wolf on the other, so
+# the carve-out asks git, in git's own resolution order. This is the form that
+# destroyed real work twice before the predicate existed.
+RUN_DIR="$REFBOX"
+
+expect 2 "blocks a BARE pathspec checkout (no --)" blast-radius-guard.py \
+    "$(bash_envelope 'git checkout tracked.txt')" "Blocked"
+
+expect 0 "allows checking out a name that resolves to a commit" blast-radius-guard.py \
+    "$(bash_envelope 'git checkout existing-branch')"
+
+expect 0 "allows a bare branch switch" blast-radius-guard.py \
+    "$(bash_envelope 'git checkout main')"
+
+expect 0 "allows a commit-ish" blast-radius-guard.py \
+    "$(bash_envelope 'git checkout HEAD')"
+
+# git errors on a name that is neither; blocking it would be noise.
+expect 0 "allows a name that is neither ref nor file" blast-radius-guard.py \
+    "$(bash_envelope 'git checkout no-such-thing')"
+
+expect 0 "allows a branch switch when a file shares the branch name" blast-radius-guard.py \
+    "$(bash_envelope 'git checkout shadowed')"
+
+# -f discards local modifications even when the target IS a branch.
+expect 2 "blocks a forced switch to a real branch" blast-radius-guard.py \
+    "$(bash_envelope 'git checkout -f existing-branch')" "Blocked"
+
+# The separator means "these are files" no matter what they resolve to.
+expect 2 "blocks an explicit pathspec even when it names a ref" blast-radius-guard.py \
+    "$(bash_envelope 'git checkout -- main')" "Blocked"
+RUN_DIR="$ORIGIN"
 
 section "blast-radius-guard.py -- scan_raw and DOTALL"
 
@@ -263,28 +368,52 @@ expect 0 "ignores non-Bash tools" watch-mode-guard.py \
     "$(write_envelope 'README.md' 'npm run test')"
 
 # ===========================================================================
-section "git-safety.sh"
+section "git-safety.py"
 
 RUN_DIR="$GITBOX"
 
-expect 2 "blocks the hook-bypass flag on commit" git-safety.sh \
+expect 2 "blocks the hook-bypass flag on commit" git-safety.py \
     "$(bash_envelope "git commit $NOVERIFY -m \"fix: thing\"")" "verify"
 
-expect 2 "blocks the hook-bypass flag on push" git-safety.sh \
+expect 2 "blocks the hook-bypass flag on push" git-safety.py \
     "$(bash_envelope "git push $NOVERIFY")" "verify"
 
 # The message is stripped before matching, so documenting the flag is fine.
-expect 0 "allows a commit MESSAGE that mentions the bypass flag" git-safety.sh \
+expect 0 "allows a commit MESSAGE that mentions the bypass flag" git-safety.py \
     "$(bash_envelope "git commit -m \"docs: explain why $NOVERIFY is blocked\"")"
 
-expect 0 "allows an ordinary commit" git-safety.sh \
+expect 0 "allows an ordinary commit" git-safety.py \
     "$(bash_envelope 'git commit -m "feat: add the thing"')"
 
-expect 2 "blocks a too-short commit message" git-safety.sh \
+expect 2 "blocks a too-short commit message" git-safety.py \
     "$(bash_envelope 'git commit -m "wip"')" "too short"
 
-expect 0 "ignores non-git Bash commands" git-safety.sh \
+expect 0 "ignores non-git Bash commands" git-safety.py \
     "$(bash_envelope 'npm run build')"
+RUN_DIR="$ORIGIN"
+
+# --- the protected-branch checks, ON a protected branch ---------------------
+RUN_DIR="$PROTBOX"
+
+expect 2 "blocks a direct commit to a protected branch" git-safety.py \
+    "$(bash_envelope 'git commit -m "feat: straight onto main"')" "not allowed"
+
+expect 2 "blocks a force push to a protected branch" git-safety.py \
+    "$(bash_envelope 'git push --force origin main')" "rewrites shared history"
+
+# PATTERNS.md section 2, and the reason this guard is no longer shell. It used
+# to match the RAW command, so ANY Bash call whose text merely contained a git
+# command was blocked outright while on a protected branch -- a heredoc writing
+# a fixture, a doc edit describing this very hook. normalize() strips the
+# heredoc body, so the mention is data again.
+expect 0 "allows a heredoc that merely mentions a commit" git-safety.py \
+    "$(bash_envelope "$(printf 'cat > doc.md <<%sEOF%s\ngit commit -m "x" saves work.\nEOF\n' "'" "'")")"
+
+expect 0 "allows a quoted mention of a commit" git-safety.py \
+    "$(bash_envelope 'echo "run git commit -m \"msg\" to save"')"
+
+expect 0 "allows a branch-creating switch on a protected branch" git-safety.py \
+    "$(bash_envelope 'git switch -c feat/new-thing')"
 RUN_DIR="$ORIGIN"
 
 # ===========================================================================
@@ -349,7 +478,7 @@ for script in blast-radius-guard.py config-sync-guard.py watch-mode-guard.py \
     expect 1 "$script survives malformed JSON (non-blocking)" "$script" 'not json at all'
 done
 
-for script in git-safety.sh auto-format-code.sh; do
+for script in git-safety.py auto-format-code.sh; do
     out=$(printf 'not json' | "$SCRIPTS/$script" 2>&1); got=$?
     if [[ $got -eq 2 ]]; then
         echo -e "${RED}x${NC} $script must not BLOCK on malformed input"
