@@ -14,6 +14,39 @@ to replace it. A schema or contract change requires a major bump.
 - A `config_sync` rule reminding you to add a changelog line when a
   user-visible surface changes. Scoped to guards, shipped config, wiring and
   the installer — not docs, tests or CI, where it would be noise.
+- `install.sh` now ships `templates/CLAUDE.md.template` into the target's
+  `.claude/`, and the closing instructions name it. It was
+  referenced only from the README, so an installed repo never received the one
+  document explaining which rules are worth writing.
+- `git-safety` is now Python (`git-safety.py`, replacing `git-safety.sh`) so it
+  can use `normalize()`. It matched the raw command, so any Bash call whose text
+  merely contained a git command — a heredoc writing a fixture, a doc edit
+  describing the hook — was blocked outright while on a protected branch.
+- The protected-branch check now reads `git symbolic-ref`, not
+  `rev-parse --abbrev-ref`. On an unborn HEAD (a fresh checkout with no commits)
+  rev-parse fails, the branch read as empty, and the first commit landed on the
+  protected branch unguarded.
+- `verify-repo.sh` asserts that rules mirrored into the test fixtures have not
+  drifted from the shipped config. A drifted mirror keeps the suite green while
+  the rule users actually run is wrong.
+- A `blast_radius` rule blocking commands that discard uncommitted work:
+  pathspec checkout, `git restore` of the worktree, `git reset --hard`, forced
+  checkout, and `git clean -f`. Unlike the rules around it this one is not
+  illustrative — keep it. Branch switches, `-b`, `--staged`, `--soft` and `-n`
+  are deliberately allowed, since none of them can lose work.
+- Reinstalling now refreshes the template and slash commands while they still
+  match what was installed, and keeps them once you have edited them. Provenance
+  is recorded in `.claude/.guardrails-manifest`; a file of unknown origin is
+  treated as edited and never overwritten. `guardrails.config.json` is
+  deliberately excluded — it is yours from step 1 onward.
+- The installer now says what `--force` costs: it replaces the config, template
+  and commands outright, including the rules you deleted in step 1.
+- A `config_sync` rule covering `templates/`. The installer copies it by name,
+  so a new or renamed template ships nowhere and nothing fails — the shape that
+  left the CLAUDE.md template unshipped for the project's whole history.
+- A `Coupled surfaces` section in the template, mapping to `config_sync` rules.
+  The template previously prompted only for `blast_radius`, leaving the
+  works-locally/missing-in-production class of bug undocumented.
 
 ## [1.2.1] - 2026-09-12
 
