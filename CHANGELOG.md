@@ -10,7 +10,15 @@ to replace it. A schema or contract change requires a major bump.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-09-12
+
 ### Added
+- `install.sh` prunes hook entries that point at a guard this version no longer
+  ships, and removes the orphaned file. A merge preserves whatever is already
+  wired, which is right for your own hooks and wrong for one of ours that was
+  renamed: upgrading left the stale entry pointing at the old file, still on
+  disk, so the repo ran BOTH the old guard and its replacement. Retired names
+  are listed explicitly, so a script you added yourself is never touched.
 - A `config_sync` rule reminding you to add a changelog line when a
   user-visible surface changes. Scoped to guards, shipped config, wiring and
   the installer — not docs, tests or CI, where it would be noise.
@@ -153,7 +161,8 @@ Initial public release.
 
 [kac]: https://keepachangelog.com/en/1.1.0/
 [semver]: https://semver.org/spec/v2.0.0.html
-[Unreleased]: https://github.com/stephennmiller/claude-code-guardrails/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/stephennmiller/claude-code-guardrails/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/stephennmiller/claude-code-guardrails/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/stephennmiller/claude-code-guardrails/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/stephennmiller/claude-code-guardrails/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/stephennmiller/claude-code-guardrails/compare/v1.0.0...v1.1.0

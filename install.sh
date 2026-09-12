@@ -45,6 +45,15 @@ out "Installing guardrails into $TARGET"
 
 run() { [[ $DRY_RUN -eq 1 ]] || "$@"; }
 
+# Guards that SHIPPED in an earlier version under a different name. A merge
+# preserves whatever is already wired, which is right for a user's own hooks and
+# wrong for one of ours that has been renamed: the stale entry keeps pointing at
+# the old file, which is still on disk, so an upgraded repo runs BOTH the old
+# guard and its replacement. Listed explicitly rather than inferred -- a user may
+# legitimately add their own script to hooks-scripts/, and guessing would delete
+# it.
+RETIRED_GUARDS="git-safety.sh"
+
 # Provenance, so a reinstall can tell "the user edited this" from "this is an
 # older copy of ours." Comparing the installed file against the CURRENT shipped
 # one cannot distinguish those: both just differ. So record what we wrote, and
@@ -202,6 +211,25 @@ if source_deny:
     else:
         print("   deny rules already present")
 
+retired = [name for name in (sys.argv[4] if len(sys.argv) > 4 else "").split() if name]
+pruned = 0
+if retired:
+    for event, groups in list(target["hooks"].items()):
+        for group in list(groups):
+            keep = [
+                h for h in group.get("hooks", [])
+                if not any(f"hooks-scripts/{name}" in (h.get("command") or "")
+                           for name in retired)
+            ]
+            pruned += len(group.get("hooks", [])) - len(keep)
+            group["hooks"] = keep
+            if not keep:
+                groups.remove(group)
+        if not groups:
+            del target["hooks"][event]
+if pruned:
+    print(f"   {pruned} stale hook(s) pruned: {', '.join(retired)}")
+
 added = skipped = 0
 for event, groups in source.get("hooks", {}).items():
     existing = target["hooks"].setdefault(event, [])
@@ -234,12 +262,21 @@ PY
 # Captured rather than written straight to stdout: if the caller piped us into
 # something that exits early, a direct write raises BrokenPipeError inside
 # Python and the merge reports a failure that never happened.
-if MERGE_OUT="$(python3 -c "$MERGE_SCRIPT" "$DEST/settings.json" "$SRC/.claude/settings.json" "$DRY_RUN")"; then
+if MERGE_OUT="$(python3 -c "$MERGE_SCRIPT" "$DEST/settings.json" "$SRC/.claude/settings.json" "$DRY_RUN" "$RETIRED_GUARDS")"; then
     [[ -n "$MERGE_OUT" ]] && out "$MERGE_OUT"
 else
     [[ -n "$MERGE_OUT" ]] && out "$MERGE_OUT"
     die "settings.json merge failed"
 fi
+
+# The file too, not just the wiring: left on disk it is a loaded gun for anyone
+# who re-adds the entry by hand or copies settings.json from an older repo.
+for retired in $RETIRED_GUARDS; do
+    if [[ -f "$DEST/hooks-scripts/$retired" ]]; then
+        say "-- removing retired guard hooks-scripts/$retired"
+        run rm -f "$DEST/hooks-scripts/$retired"
+    fi
+done
 
 finalize_manifest
 
