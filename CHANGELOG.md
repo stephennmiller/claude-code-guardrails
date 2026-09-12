@@ -10,18 +10,7 @@ to replace it. A schema or contract change requires a major bump.
 
 ## [Unreleased]
 
-### Added
-- CI: the hook harness runs on Linux and macOS, plus a mutation check that
-  asserts the harness fails when a guard is deliberately broken, and an
-  end-to-end `install.sh` run against a scratch repo.
-- `CONTRIBUTING.md` and this changelog.
-
-### Fixed
-- `install.sh` no longer fails when its output is piped to a consumer that
-  exits early (`head`, `grep -q`). Those close the pipe, and the next write
-  raised EPIPE which `set -e` turned into a failed install — non-deterministically,
-  since it depended on whether the installer had finished writing. Caught by CI
-  on the first run.
+Nothing yet.
 
 ## [1.0.0] - 2026-09-12
 
@@ -49,6 +38,17 @@ Initial public release.
 - `install.sh` — idempotent, merges into an existing `settings.json` without
   clobbering hooks already configured there.
 - `templates/CLAUDE.md.template` and `docs/PATTERNS.md`.
+- CI: the hook harness runs on Linux and macOS, plus a mutation check that
+  asserts the harness fails when a guard is deliberately broken, and an
+  end-to-end `install.sh` run against a scratch repo.
+- `CONTRIBUTING.md` and this changelog.
+
+### Fixed
+- `install.sh` no longer fails when its output is piped to a consumer that
+  exits early (`head`, `grep -q`). Those close the pipe, and the next write
+  raised EPIPE which `set -e` turned into a failed install — non-deterministically,
+  since it depended on whether the installer had finished writing. Caught by CI
+  on the first run.
 
 [kac]: https://keepachangelog.com/en/1.1.0/
 [semver]: https://semver.org/spec/v2.0.0.html
