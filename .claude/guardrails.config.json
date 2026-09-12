@@ -1,0 +1,197 @@
+{
+  "$comment": [
+    "Every project-specific rule lives here. The hook scripts are the engine and",
+    "should not need editing. Start by DELETING the rules that do not apply to",
+    "you -- a guard that fires on correct code gets the whole set disabled.",
+    "",
+    "Rule of thumb for what belongs here: an action whose damage is not visible",
+    "in the diff. If a reviewer would catch it, a linter should catch it, not a",
+    "hook."
+  ],
+  "blast_radius": {
+    "override_env": "ALLOW_BLAST_RADIUS",
+    "repo_markers": [
+      "package.json",
+      ".claude"
+    ],
+    "$comment": "bash_rules BLOCK (exit 2). Reserve for irreversible actions, or ones that destroy signal.",
+    "bash_rules": [
+      {
+        "name": "regenerate committed types from the remote schema",
+        "pattern": "npm\\s+run\\s+types:generate|<your-cli>\\s+gen\\s+types",
+        "message": "Overwrites the generated types file wholesale. A failed or partial generation clobbers it and breaks compilation repo-wide.\n  Generate against LOCAL into a temp file, diff it, then move it into place.",
+        "exempt": {
+          "matches": "--db-url\\s+\\S*(127\\.0\\.0\\.1|localhost)",
+          "unless_redirects_to": "src/types/generated.ts"
+        }
+      },
+      {
+        "name": "push schema to the linked remote project",
+        "pattern": "<your-cli>\\s+db\\s+push",
+        "message": "Writes migrations to the LINKED (production) project. There is no rollback.\n  If merging already auto-applies migrations, a manual push risks diverging prod from the repo."
+      },
+      {
+        "name": "reset the REMOTE database",
+        "pattern": "<your-cli>\\s+db\\s+reset\\b(?=.*(--linked|--db-url\\s+\\S*\\.(com|co|io)))",
+        "flags": [
+          "DOTALL"
+        ],
+        "message": "Resets the REMOTE database -- destroys production data.\n  A bare local reset is fine and is not blocked."
+      },
+      {
+        "name": "re-baseline visual snapshots",
+        "pattern": "npm\\s+run\\s+test:visual:update|--update-snapshots",
+        "message": "Accepts whatever the app currently renders as the new truth. If the diff was a real regression, this silently erases the evidence.\n  Look at the failing diff images first."
+      },
+      {
+        "name": "rewrite a quality baseline",
+        "pattern": "npm\\s+run\\s+(complexity|coverage):baseline",
+        "message": "Overwrites the committed baseline that the CI gate ratchets against, so a regression becomes the new floor.\n  Fix the regression, or re-baseline deliberately as its own reviewed commit."
+      },
+      {
+        "name": "hand-authored release commit",
+        "pattern": "git\\s+commit\\b(?=.*chore\\(release\\))",
+        "flags": [
+          "DOTALL"
+        ],
+        "scan_raw": true,
+        "message": "Release commits are owned by CI, which resolves the version from the branch. Hand-authoring one desyncs the tag, the commit and the changelog."
+      }
+    ],
+    "$comment2": "edit_rules are ADVISORY (stderr, exit 0). An Edit call cannot carry an override, so blocking would be a wall with no escape hatch.",
+    "edit_rules": [
+      {
+        "name": "package.json version field",
+        "path": "(^|/)package\\.json$",
+        "content": "\"version\"\\s*:",
+        "message": "The version field is owned by the release workflow. Hand-editing it desyncs the tag, the release commit and the changelog."
+      },
+      {
+        "name": "coverage thresholds",
+        "path": "(^|/)(vitest|jest)\\.config\\.[jt]s$",
+        "content": "(statements|lines|functions|branches)\\s*:\\s*\\d+",
+        "message": "Coverage floors are no-regression release gates. Raise them, never lower them. If a change drops coverage, add tests rather than moving the floor."
+      },
+      {
+        "name": "lint warning ceiling",
+        "path": "(^|/)(package\\.json|.*\\.ya?ml)$",
+        "content": "--max-warnings[= ]\\s*\\d+",
+        "message": "The warning ceiling is a CI gate. Fix the warnings instead of raising it."
+      }
+    ]
+  },
+  "config_sync": {
+    "$comment": "Advisory only, always. These name surfaces that must move together -- often including surfaces OUTSIDE the repo, which is exactly why this cannot block.",
+    "rules": [
+      {
+        "name": "Content-Security-Policy allowlist",
+        "path": "(^|/)(csp|headers|security-headers)\\.(json|ts|js)$",
+        "content": "(?i)content-security-policy|connect-src|script-src|frame-src|img-src",
+        "message": "The CSP is the runtime allowlist -- the only thing permitting external origins in production.\n  If code now talks to a new third-party host (fetch/script/img/iframe), add a matching source here, and vice versa.\n  A missing entry fails silently in prod, never in local dev.",
+        "$comment": "Point `path` at whatever file holds your CSP -- a host config, a headers file, a middleware module."
+      },
+      {
+        "name": "third-party script key",
+        "path": ".*",
+        "content": "(?i)<provider-name>|<PUBLIC_KEY_ENV_VAR>",
+        "message": "A third-party provider is usually a multi-surface change -- verify all of them:\n  1. CSP allowlist (script-src / connect-src / frame-src)\n  2. the hosting platform's env vars, in EVERY environment\n  3. the provider's own dashboard (secret, allowed domains)\n  Shipping the key without the CSP entry is the classic outage.",
+        "$comment": "List the providers you actually embed. Left generic on purpose: a rule that fires on providers you do not use is noise."
+      },
+      {
+        "name": "env schema",
+        "path": "(^|/)(env|environment)\\.[jt]s$|(^|/)config/env\\.",
+        "content": null,
+        "message": "Required env keys usually throw at startup, before anything renders. If you added, renamed or removed one, keep these in sync:\n  - .env.example (checked in)\n  - the hosting platform's env vars, in EVERY environment\n  - every consumer of the old name"
+      },
+      {
+        "name": "enum value added without widening its CHECK constraints",
+        "path": "migrations/.*\\.sql$",
+        "content": "(?i)alter\\s+type\\s+[\\w.\"]*\\s+add\\s+value",
+        "message": "Adding an enum value often also requires widening every CHECK constraint that lists the old values, in the SAME migration.\n  Otherwise inserts using the new value fail at runtime with a check_violation (Postgres 23514), not at deploy time."
+      },
+      {
+        "name": "component not declared in its manifest",
+        "$comment": "Generalizes the 'exists on disk, never deployed' bug. Adjust the three fields to your manifest.",
+        "path": "functions/(?!_shared/|node_modules/)[^/]+/.*\\.(ts|js|py)$",
+        "content": null,
+        "requires_declaration": {
+          "capture_name_from": "functions/([^/]+)/",
+          "manifest": "config.toml",
+          "must_contain": "[functions.{name}]"
+        },
+        "message": "This component has no entry in the manifest, so the deploy will NOT include it.\n  It works locally and 404s in production -- often surfacing as a confusing CORS error on the preflight, which sends you debugging the wrong thing."
+      }
+    ]
+  },
+  "watch_mode": {
+    "$comment": "Blocks test-runner invocations that would hang the tool call. npm_scripts matching is ANCHORED: listing 'test' does not match 'test:e2e'.",
+    "runners": [
+      {
+        "name": "Vitest",
+        "npm_scripts": [
+          "test",
+          "tst",
+          "t"
+        ],
+        "binaries": [
+          "vitest"
+        ],
+        "hangs_anyway": [
+          "test:ui"
+        ],
+        "hang_flags": [
+          "--ui"
+        ],
+        "run_markers": [
+          "--run",
+          "--watch=false"
+        ],
+        "run_subcommand": "run",
+        "message": "Blocked: this starts Vitest in WATCH mode and will hang the tool call.\n\n\"test\": \"vitest\" is watch-by-default and there is no TTY here to quit it.\n\n  npm run test -- <file> --run        single file, one shot\n  npm run test -- -t \"<name>\" --run   by name pattern\n\nThe `--` is required. `npm run test --run` does NOT work: npm swallows the\nflag, forwards nothing, and vitest starts watch mode anyway.",
+        "hang_message": "Blocked: --ui starts the Vitest UI server and will hang the tool call.\n\nThere is no TTY here to quit it. The UI is worth using, but it needs a real\nterminal -- ask the user to run `npm run test:ui` themselves, or use\n`npm run test -- <file> --run` to get the result here instead."
+      },
+      {
+        "name": "Jest",
+        "npm_scripts": [],
+        "binaries": [
+          "jest"
+        ],
+        "hang_flags": [
+          "--watch",
+          "--watchAll"
+        ],
+        "run_markers": [
+          "--ci",
+          "--watchAll=false",
+          "--watch=false"
+        ],
+        "hang_message": "Blocked: `jest --watch` will hang the tool call -- there is no TTY here to quit it.\n  Drop the flag, or pass --ci."
+      }
+    ]
+  },
+  "git_safety": {
+    "protected_branches": [
+      "main",
+      "master"
+    ],
+    "max_staged_files": 25,
+    "conventional_commit_types": [
+      "feat",
+      "fix",
+      "docs",
+      "style",
+      "refactor",
+      "perf",
+      "test",
+      "build",
+      "ci",
+      "chore",
+      "revert"
+    ]
+  },
+  "secret_scan": {
+    "min_secret_length": 16,
+    "min_entropy_bits": 3.0,
+    "skip_paths": []
+  }
+}

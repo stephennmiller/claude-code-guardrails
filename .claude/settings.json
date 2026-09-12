@@ -1,0 +1,60 @@
+{
+  "$comment": "Merge these hooks into your repo's .claude/settings.json. Order within a matcher is the order they run; the first non-zero exit wins.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks-scripts/secret-scan-guard.py\"",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks-scripts/config-sync-guard.py\"",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks-scripts/blast-radius-guard.py\"",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "$comment": "blast-radius-guard is listed under BOTH matchers on purpose. A guard registered only for Write|Edit leaks through Bash -- `sed -i` and `bash -c` are edits too. This is the single most common way a hook set is quietly useless.",
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks-scripts/git-safety.sh\"",
+            "timeout": 3
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks-scripts/watch-mode-guard.py\"",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks-scripts/blast-radius-guard.py\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks-scripts/auto-format-code.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,141 @@
+# CLAUDE.md
+
+> Agent-facing context for <project>. Aim for <= 300 lines. Everything else is
+> cross-referenced and loaded on demand.
+
+<!--
+HOW TO USE THIS TEMPLATE
+
+Four sections below carry almost all the value. They are the ones people skip:
+
+  1. High-blast-radius actions  -> becomes blast_radius rules in guardrails.config.json
+  2. Known rough edges          -> the highest-value section in the whole file
+  3. Where to look (by task)    -> turns a repo-wide grep into a one-file read
+  4. Do / Don't                 -> only the non-obvious half
+
+The rest is orientation. Write it once, keep it short, and let it go stale
+slowly rather than writing a beautiful document nobody updates.
+
+THE TEST FOR EVERY LINE: would an experienced engineer, dropped into this repo,
+get this wrong on their first day? If not, delete it. "Use meaningful variable
+names" is noise. "`npm run test` is watch-by-default and will hang you" is not.
+-->
+
+## Project in one paragraph
+
+What it is, who uses it, what it is backed by, and the ONE quality bar that
+should decide close calls (prototype vs. production, ship-fast vs. correctness).
+An agent resolves a hundred small tradeoffs a day; this sentence is what it
+resolves them against.
+
+## Stack and versions
+
+- **Runtime**: <language + version, and where it is pinned>
+- **Framework**: <name + major version>
+- **Data**: <database / ORM / client>
+- **Tests**: <unit runner, e2e runner>
+- **Tooling**: <formatter, linter, typechecker, dead-code>
+
+Pin majors. An agent trained before your version will confidently use the old
+API otherwise.
+
+## Layout
+
+| Dir | Purpose |
+|-----|---------|
+| `src/` | ... |
+| `tests/` | ... |
+| `.claude/` | Rules (auto-loaded), commands, hooks |
+
+Note what is **absent** as well as present — a directory that was deleted, or a
+pattern the repo deliberately does not use, is worth one line. Agents
+reconstruct removed abstractions from memory.
+
+## Setup
+
+```bash
+<the exact commands, in order, that take a fresh clone to a running app>
+```
+
+## Boot chain
+
+`entry` -> `bootstrap` -> `providers` -> `routes`. One line each. This is what
+lets an agent find where a global concern (auth, theme, error boundary) is
+actually wired, instead of grepping for it.
+
+## Commands
+
+### Fast feedback (use these)
+
+```bash
+<single-file test>       # the targeted form, with any flag needed to avoid watch mode
+<typecheck>
+<format + lint fix>
+```
+
+### Everything else
+
+```bash
+<build> <full suite> <e2e> <coverage>
+```
+
+Mark which are slow and which are release gates.
+
+## High-blast-radius actions (confirm before running)
+
+<!-- Each row should also become a rule in .claude/guardrails.config.json, or it
+     is documentation that nothing enforces. -->
+
+| Action | Why it matters |
+|--------|----------------|
+| `<regenerate committed artifact>` | Overwrites a file the whole repo compiles against |
+| `<write to remote database>` | No rollback |
+| `<re-baseline snapshots>` | Silently erases evidence of a real regression |
+| `<edit an applied migration>` | Diverges prod from the repo |
+| `<push to the protected branch>` | Bypasses review |
+| Editing generated dirs | Regenerate instead |
+
+## Known rough edges
+
+<!-- THE HIGHEST-VALUE SECTION IN THIS FILE. Not features: failure modes. Every
+     entry should be something that already cost someone hours. Write the
+     SYMPTOM first, because the symptom is what the next person will search for,
+     and it rarely resembles the cause. -->
+
+- **<Trap>** — what happens, why, and what to do instead. Include the exact
+  error text if it is short; that is what gets pasted into a search.
+- **<Command that looks safe but is not>** — ...
+- **<Tool whose default is wrong here>** — ...
+
+## Conventions (rules, not suggestions)
+
+Only the ones a competent engineer would otherwise get wrong. Everything a
+linter enforces belongs in the linter, not here.
+
+- **<Invariant>** — ...
+- **<Pattern to imitate>** — name the canonical file to copy.
+
+## Do / Don't
+
+- **Don't** run the full test suite unless asked. Targeted runs only.
+- **Don't** add comments that restate the code. Comment the *why*.
+- **Don't** create new docs unless asked.
+- **Don't** change lint/coverage thresholds — they are release gates.
+- **Do** <the project-specific one that actually matters>.
+
+## CI (what actually runs on PRs)
+
+Name the **required** checks and how to run each locally. Distinguish required
+from advisory: an agent that cannot tell them apart either ignores real gates or
+blocks on cosmetic ones.
+
+## Where to look (by task)
+
+| Task | Go to |
+|------|-------|
+| Adding a feature | ... |
+| UI components | ... |
+| Database schema | ... |
+| CI status | ... |
+
+Skip unless directly relevant: `<dirs that are large and rarely needed>`.

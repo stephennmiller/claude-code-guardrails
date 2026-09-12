@@ -1,0 +1,90 @@
+{
+  "$comment": "Fixture config for the test harness. Tests exercise the ENGINE, so they must not depend on whatever rules a given project happens to have configured.",
+  "blast_radius": {
+    "override_env": "ALLOW_BLAST_RADIUS",
+    "repo_markers": ["package.json", ".claude"],
+    "bash_rules": [
+      {
+        "name": "push schema to remote",
+        "pattern": "testcli\\s+db\\s+push",
+        "message": "Writes to the remote database."
+      },
+      {
+        "name": "regenerate types",
+        "pattern": "testcli\\s+gen\\s+types",
+        "message": "Overwrites generated types.",
+        "exempt": {
+          "matches": "--db-url\\s+\\S*(127\\.0\\.0\\.1|localhost)",
+          "unless_redirects_to": "src/types/generated.ts"
+        }
+      },
+      {
+        "name": "reset remote database",
+        "pattern": "testcli\\s+db\\s+reset\\b(?=.*--linked)",
+        "flags": ["DOTALL"],
+        "message": "Destroys production data."
+      },
+      {
+        "name": "hand-authored release commit",
+        "pattern": "git\\s+commit\\b(?=.*chore\\(release\\))",
+        "flags": ["DOTALL"],
+        "scan_raw": true,
+        "message": "Release commits are owned by CI."
+      }
+    ],
+    "edit_rules": [
+      {
+        "name": "coverage thresholds",
+        "path": "(^|/)vitest\\.config\\.ts$",
+        "content": "(statements|lines|functions|branches)\\s*:\\s*\\d+",
+        "message": "Coverage floors are release gates."
+      }
+    ]
+  },
+  "config_sync": {
+    "rules": [
+      {
+        "name": "CSP allowlist",
+        "path": "(^|/)csp\\.json$",
+        "content": "(?i)connect-src|script-src",
+        "message": "Keep the CSP and the calling code in sync."
+      },
+      {
+        "name": "component not declared in manifest",
+        "path": "functions/(?!_shared/)[^/]+/.*\\.ts$",
+        "content": null,
+        "requires_declaration": {
+          "capture_name_from": "functions/([^/]+)/",
+          "manifest": "config.toml",
+          "must_contain": "[functions.{name}]"
+        },
+        "message": "Not declared in the manifest; it will not deploy."
+      }
+    ]
+  },
+  "watch_mode": {
+    "runners": [
+      {
+        "name": "Vitest",
+        "npm_scripts": ["test", "tst", "t"],
+        "binaries": ["vitest"],
+        "hangs_anyway": ["test:ui"],
+        "hang_flags": ["--ui"],
+        "run_markers": ["--run", "--watch=false"],
+        "run_subcommand": "run",
+        "message": "Blocked: starts Vitest in WATCH mode and will hang the tool call.",
+        "hang_message": "Blocked: --ui starts a server and will hang the tool call."
+      }
+    ]
+  },
+  "git_safety": {
+    "protected_branches": ["main", "master"],
+    "max_staged_files": 25,
+    "conventional_commit_types": ["feat", "fix", "docs", "chore", "test", "refactor"]
+  },
+  "secret_scan": {
+    "min_secret_length": 16,
+    "min_entropy_bits": 3.0,
+    "skip_paths": []
+  }
+}
