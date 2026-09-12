@@ -77,6 +77,15 @@
         "path": "(^|/)(package\\.json|.*\\.ya?ml)$",
         "content": "--max-warnings[= ]\\s*\\d+",
         "message": "The warning ceiling is a CI gate. Fix the warnings instead of raising it."
+      },
+      {
+        "name": "a CI step that cannot fail",
+        "path": "(^|/)\\.github/workflows/.*\\.ya?ml$",
+        "content": "continue-on-error:\\s*true|\\|\\|\\s*true\\s*$",
+        "flags": [
+          "MULTILINE"
+        ],
+        "message": "`continue-on-error: true` and a trailing `|| true` both make a step incapable of failing.\n  That is legitimate for an advisory check, but its green runs then prove only that the step executed -- not that it passed. Say which one you mean in a comment, and do not promote such a job to required without removing both."
       }
     ]
   },
@@ -120,6 +129,12 @@
           "must_contain": "[functions.{name}]"
         },
         "message": "This component has no entry in the manifest, so the deploy will NOT include it.\n  It works locally and 404s in production -- often surfacing as a confusing CORS error on the preflight, which sends you debugging the wrong thing."
+      },
+      {
+        "name": "CI workflow and the branch protection that depends on it",
+        "path": "(^|/)\\.github/workflows/.*\\.ya?ml$",
+        "content": null,
+        "message": "Workflow jobs and branch protection are coupled, and neither file mentions the other.\n  Adding a job does not make it required. Renaming one silently drops the old required check, which can leave PRs mergeable with nothing gating them.\n  Check the repo's branch ruleset after this lands."
       }
     ]
   },

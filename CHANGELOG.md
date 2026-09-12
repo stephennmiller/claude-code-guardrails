@@ -10,7 +10,17 @@ to replace it. A schema or contract change requires a major bump.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+- `settings.json` ships a small `permissions.deny` list, and `install.sh` now
+  merges it as a union. Hooks are speed bumps with overrides; deny is a wall.
+- Two rules drawn from real failures: a reminder that CI workflows and branch
+  protection are coupled, and an advisory on `continue-on-error: true` or a
+  trailing `|| true`, which make a step incapable of failing.
+
+### Fixed
+- `install.sh` copied the shipped `permissions` block into the target repo but
+  never merged it into `settings.json`, so the deny rules were present on disk
+  and enforcing nothing.
 
 ## [1.1.0] - 2026-09-12
 

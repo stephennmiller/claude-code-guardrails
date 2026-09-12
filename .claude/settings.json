@@ -1,5 +1,15 @@
 {
   "$comment": "Merge these hooks into your repo's .claude/settings.json. Order within a matcher is the order they run; the first non-zero exit wins.",
+  "permissions": {
+    "$comment": "A hook is a speed bump: it can be overridden, and it only sees the tool calls its matcher catches. permissions.deny is a wall. Put things here that are never right from an agent, and leave the judgement calls to the guards. Keep this list short -- a long deny list gets loosened.",
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git reset --hard*)",
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~*)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {

@@ -103,6 +103,22 @@ if target_path.is_file():
 source = json.loads(source_path.read_text(encoding="utf-8"))
 target.setdefault("hooks", {})
 
+# permissions.deny is merged as a UNION, and only ever grows. Entries the
+# target already has are untouched, and `allow` is never read or written:
+# quietly widening what an agent may do would be the opposite of the point.
+# Without this the shipped deny list is copied into the repo and never
+# reaches settings.json -- present on disk, enforcing nothing.
+source_deny = (source.get("permissions") or {}).get("deny") or []
+if source_deny:
+    permissions = target.setdefault("permissions", {})
+    existing_deny = permissions.setdefault("deny", [])
+    fresh = [rule for rule in source_deny if rule not in existing_deny]
+    existing_deny.extend(fresh)
+    if fresh:
+        print(f"   {len(fresh)} deny rule(s) added: {', '.join(fresh)}")
+    else:
+        print("   deny rules already present")
+
 added = skipped = 0
 for event, groups in source.get("hooks", {}).items():
     existing = target["hooks"].setdefault(event, [])
