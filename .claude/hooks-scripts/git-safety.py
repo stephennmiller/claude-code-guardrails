@@ -55,8 +55,10 @@ COMMIT_TYPES = CONFIG.get("conventional_commit_types") or [
 ]
 
 # A bare `git` somewhere in the command is the cheap gate. Anchored so that
-# `legit` or a stray `--git-dir` does not wake the guard up.
-INVOKES_GIT = re.compile(r"(^|[\s;&|])git\s")
+# `legit` or a stray `--git-dir` does not wake the guard up. A quote, paren or
+# backtick must open it too: inside `bash -c 'git commit ...'` a QUOTE precedes
+# `git`, and without it the guard returned 0 before any check ran (issue #9).
+INVOKES_GIT = re.compile(r"(^|[\s;&|'\"(`])git\s")
 
 WRITES_HISTORY = re.compile(r"\bgit\s+(commit|push|merge|rebase)\b")
 SKIP_FLAG = re.compile(r"(^|\s)--no-verify(\s|$)")

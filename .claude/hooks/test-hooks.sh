@@ -186,6 +186,17 @@ expect 2 "blocks through the combined -euxc spelling" blast-radius-guard.py \
 expect 0 "override still works inside a wrapper" blast-radius-guard.py \
     "$(bash_envelope 'bash -c "ALLOW_BLAST_RADIUS=1 testcli db push"')"
 
+# Issue #9. The wrapper exception used to keep EVERY quoted span raw, not just
+# the wrapper's own argument, so a quoted mention of the override anywhere in
+# the same command granted it.
+expect 2 "a quoted override mention BESIDE a wrapper does NOT grant it" blast-radius-guard.py \
+    "$(bash_envelope 'echo "ALLOW_BLAST_RADIUS=1"; bash -c "testcli db push"')" "Blocked"
+
+# What stays raw is the wrapper's whole simple command, not just the `-c`
+# argument: positional args can carry the command into an `eval`.
+expect 2 "blocks a command passed to the wrapper as a positional arg" blast-radius-guard.py \
+    "$(bash_envelope "bash -c 'eval \"\$1\"' _ 'testcli db push'")" "Blocked"
+
 section "blast-radius-guard.py -- discarding uncommitted work"
 
 # These forms delete work that was never committed: no reflog, no stash, no
@@ -378,6 +389,13 @@ expect 2 "blocks the hook-bypass flag on commit" git-safety.py \
 expect 2 "blocks the hook-bypass flag on push" git-safety.py \
     "$(bash_envelope "git push $NOVERIFY")" "verify"
 
+# Issue #9. The cheap "is this git at all?" gate wanted whitespace or `;&|`
+# before `git`. Inside a wrapper a QUOTE precedes it, so the guard returned 0
+# before any check ran, and the wrapper exception in PATTERNS.md section 2
+# protected nothing.
+expect 2 "blocks the hook-bypass flag through bash -c" git-safety.py \
+    "$(bash_envelope "bash -c 'git commit $NOVERIFY -m \"fix: wrapped thing\"'")" "verify"
+
 # The message is stripped before matching, so documenting the flag is fine.
 expect 0 "allows a commit MESSAGE that mentions the bypass flag" git-safety.py \
     "$(bash_envelope "git commit -m \"docs: explain why $NOVERIFY is blocked\"")"
@@ -400,6 +418,31 @@ expect 2 "blocks a direct commit to a protected branch" git-safety.py \
 
 expect 2 "blocks a force push to a protected branch" git-safety.py \
     "$(bash_envelope 'git push --force origin main')" "rewrites shared history"
+
+# Issue #9, the bypass half: see the gate comment in the git-safety.py section.
+expect 2 "blocks a direct commit through bash -c" git-safety.py \
+    "$(bash_envelope "bash -c 'git commit -m \"feat: straight onto main\"'")" "not allowed"
+
+expect 2 "blocks a force push through sh -c" git-safety.py \
+    "$(bash_envelope 'sh -c "git push --force origin main"')" "rewrites shared history"
+
+# The wrapper's argument must be found by a scanner that honours backslash
+# escapes. A plain "[^\"]*" match ends at the first \" and loses the command.
+expect 2 "blocks a wrapped commit whose message uses escaped quotes" git-safety.py \
+    "$(bash_envelope 'bash -c "git commit -m \"feat: straight onto main\""')" "not allowed"
+
+# Pins the escape handling itself. A scanner that ends the argument at the
+# first \" ends the raw extent at the `;` inside it, then pairs the stray quote
+# after `main` with the next command's quote and strips `main` away.
+expect 2 "blocks a force push after an escaped quote inside the wrapper" git-safety.py \
+    "$(bash_envelope 'bash -c "echo \"a\"; git push --force origin main"; echo "x"')" "rewrites shared history"
+
+# Issue #9, the false-positive half. One wrapper ANYWHERE used to keep every
+# quoted span raw, so a fixture string elsewhere in the command read as a real
+# commit. Found in practice: a test script holding a JSON envelope in single
+# quotes, with `sh -c "$cmd"` on another line.
+expect 0 "a wrapper elsewhere does not unmask a quoted mention of a commit" git-safety.py \
+    "$(bash_envelope "git status; MSG='git commit -m \"feat: only mentioned\"'; sh -c \"\$CMD\"")"
 
 # PATTERNS.md section 2, and the reason this guard is no longer shell. It used
 # to match the RAW command, so ANY Bash call whose text merely contained a git

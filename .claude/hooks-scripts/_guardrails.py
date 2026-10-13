@@ -183,12 +183,66 @@ def strip_heredocs(command: str) -> str:
     return "\n".join(kept)
 
 
+def _strip_plain(text: str) -> str:
+    return re.sub(r'"[^"]*"', "", re.sub(r"'[^']*'", "", text))
+
+
+def _quote_end(command: str, start: int) -> int:
+    """Index just past the quoted span opening at `start` (bash rules: nothing
+    escapes inside single quotes; a backslash does inside double quotes).
+
+    A plain `"[^"]*"` ends at the first escaped quote, so
+    `bash -c "git commit -m \\"msg\\""` would lose the command it carries.
+    """
+    quote = command[start]
+    i = start + 1
+    while i < len(command):
+        if quote == '"' and command[i] == "\\":
+            i += 2
+            continue
+        if command[i] == quote:
+            return i + 1
+        i += 1
+    return len(command)
+
+
+def _simple_command_end(command: str, start: int) -> int:
+    """Index of the first unquoted `;`, `&`, `|` or newline at or after `start`."""
+    i = start
+    while i < len(command):
+        ch = command[i]
+        if ch in "'\"":
+            i = _quote_end(command, i)
+        elif ch == "\\":
+            i += 2
+        elif ch in ";&|\n":
+            return i
+        else:
+            i += 1
+    return len(command)
+
+
 def strip_quoted(command: str) -> str:
     """Drop quoted spans so a command that merely MENTIONS an invocation
-    (echo, a grep pattern, a commit message) is not mistaken for it."""
-    if SHELL_WRAPPER.search(command):
-        return command
-    return re.sub(r'"[^"]*"', "", re.sub(r"'[^']*'", "", command))
+    (echo, a grep pattern, a commit message) is not mistaken for it.
+
+    A shell wrapper's own simple command is kept raw: its quotes carry the real
+    command. Only that extent, though. Keeping the WHOLE command raw whenever a
+    wrapper appeared anywhere (issue #9) let a quoted fixture elsewhere read as
+    a real `git commit`, and let `echo "ALLOW_BLAST_RADIUS=1"` beside a wrapper
+    grant the override. The extent runs to the next unquoted separator rather
+    than just the `-c` argument, so `bash -c 'eval "$1"' _ '<cmd>'` stays raw.
+    """
+    out, pos = [], 0
+    for match in SHELL_WRAPPER.finditer(command):
+        if match.start() < pos:  # a wrapper nested in one already kept raw
+            continue
+        end = _simple_command_end(command, match.end())
+        out.append(_strip_plain(command[pos:match.start()]))
+        out.append(command[match.start():end])
+        pos = end
+    out.append(_strip_plain(command[pos:]))
+    return "".join(out)
 
 
 def normalize(command: str) -> str:

@@ -76,6 +76,28 @@ frequently not adjacent to the shell name (`bash -eux -c`, `bash --norc -c`,
 `-euxc` spelling and misses every separated one, which is the more common way to
 write it.
 
+**Scan only the wrapper raw, not the whole command.** Keeping *every* quoted
+span once a wrapper appears anywhere undoes the rest of this section for the
+whole command:
+
+```bash
+git status; MSG='git commit -m "feat: x"'; sh -c "$CMD"   # read as a real commit
+echo "ALLOW_BLAST_RADIUS=1"; bash -c "deploy-cli db push"  # read as consent
+```
+
+So the raw extent is the wrapper's own simple command, up to the next unquoted
+`;`, `&`, `|` or newline. That is wider than the `-c` argument on purpose:
+positional args can carry the command into an `eval`
+(`bash -c 'eval "$1"' _ 'deploy-cli db push'`). Find the extent with a scanner
+that honours backslash escapes. A `"[^"]*"` match stops at the first `\"`, the
+extent ends early, and the leftover quote pairs with one in the next command.
+
+**And make sure the guard can see what you kept.** A cheap "does this mention
+git?" gate anchored on `(^|\s)git\s` never matches inside `bash -c 'git ...'`,
+because a quote precedes `git`. The guard returned before any check ran, and
+keeping the wrapper raw protected nothing. Any gate that runs before the real
+rules needs the same openers the wrapper introduces: quotes, `(` and backtick.
+
 ### Opting out per rule
 
 One rule *needs* the raw text: "did you hand-author a release commit?" The
