@@ -54,7 +54,7 @@ whole file switched off inside a week, and the useful rules go with it.
 bash .claude/hooks/test-hooks.sh
 ```
 
-67 assertions, about two seconds, no network and no project dependencies. Wire
+100 assertions, about two seconds, no network and no project dependencies. Wire
 it into pre-push or CI. Hooks fail silently, so a broken guard and a guard with
 nothing to report look identical.
 

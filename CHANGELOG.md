@@ -13,6 +13,17 @@ an additive one — a new optional config key, say — is a minor.
 
 ### Fixed
 
+- `git-safety` now checks git commands inside a shell wrapper. Its first-pass
+  "is this git?" check required whitespace or `;&|` before `git`, so in
+  `bash -c 'git commit ...'` (a quote precedes `git`) it returned before any
+  check ran. Commits to a protected branch, force-pushes and the hook-bypass
+  flag all got through when wrapped (#9).
+- A shell wrapper no longer turns off quote-stripping for the whole command,
+  only for the wrapper's own simple command. Before, one `sh -c` anywhere made
+  every quoted span count as a command, so a quoted `git commit` fixture
+  elsewhere was blocked as a real commit, and `echo "ALLOW_BLAST_RADIUS=1"`
+  next to a wrapper counted as granting the override (#9).
+
 - `templates/CLAUDE.md.template`'s bare `<placeholder>` fill-ins that happened
   to parse as valid HTML open tags now use the same backtick code-span
   convention as every other placeholder in the file, closing the last

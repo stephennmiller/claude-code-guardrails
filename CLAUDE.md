@@ -10,7 +10,7 @@ dependencies: `python3` 3.9+, `jq`, `bash` 3.2+.
 |------|------|
 | `.claude/hooks-scripts/` | The six guards. `_guardrails.py` is the shared engine. |
 | `.claude/guardrails.config.json` | Every project-specific rule. Data, not code. |
-| `.claude/hooks/test-hooks.sh` | 92 assertions, ~2s. |
+| `.claude/hooks/test-hooks.sh` | 100 assertions, ~2s. |
 | `.claude/hooks/fixtures/` | Config the tests run against, so they exercise the engine. |
 | `.claude/settings.json` | Hook wiring, copied into the user's repo by `install.sh`. |
 | `docs/PATTERNS.md` | Why each rule is shaped the way it is. Read before writing one. |
